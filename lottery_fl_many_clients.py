@@ -1,10 +1,10 @@
 import copy
-from utils import load_data_for_clients,load_val_data,initialize_mask_list,multiply_mask,client_update_lottery_fl,masked_fedavg,client_model_initialization_single_fl,print_avg_personalized_weights_each_layer,print_correlation_between_label_similarity_and_network_similarity,print_correlation_between_label_similarity_and_pruned_model_divergence,print_avg_10_percent_personalized_weights_each_layer,calculate_accuracy,client_model_initialization_lenet5
+from utils import load_data_for_clients,load_val_data,initialize_mask_list,multiply_mask,client_update_lottery_fl,masked_fedavg,client_model_initialization_single_fl,print_avg_personalized_weights_each_layer,print_correlation_between_label_similarity_and_network_similarity,print_correlation_between_label_similarity_and_pruned_model_divergence,print_avg_10_percent_personalized_weights_each_layer,calculate_accuracy,client_model_initialization_lenet5,load_weights
 from tensorflow import keras
 import tensorflow as tf
 import random
 
-def lottery_fl_many_clients(dataset_name,n_client,n_sampling_each_round,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size):
+def lottery_fl_many_clients(initial_weights,dataset_name,n_client,n_sampling_each_round,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size):
 
     # Initilization
     
@@ -26,8 +26,7 @@ def lottery_fl_many_clients(dataset_name,n_client,n_sampling_each_round,n_class,
     client_train,client_test = load_data_for_clients(dataset_name,n_client,dataset_id=dataset_id)
     client_val = load_val_data(dataset_name,dataset_id,n_client)
 
-    initial_weights = copy.deepcopy(global_model.get_weights()) # Random initialization
-
+    
     # Initializa weights and pruned rate
         
     weights_list = []
@@ -107,20 +106,21 @@ def lottery_fl_many_clients(dataset_name,n_client,n_sampling_each_round,n_class,
 
     
 dataset_name = "cifar10_20"
-n_client = 100
+n_client = 10
 n_class = 10
 n_neurons = 32
-client_model_initialization = client_model_initialization_lenet5
-dataset_id = 1
-n_layer = 4
-n_conv_layer = 2
+client_model_initialization = client_model_initialization_single_fl
+dataset_id = 0
+n_layer = 2
+n_conv_layer = 0
 epoch_per_round = 10
-n_round = 400
+n_round = 100
 opt = opt = keras.optimizers.SGD(learning_rate=0.01,momentum=0.5)
 pruned_rate_each_round = 0.2
 pruned_rate_target = 0.7
 accuracy_threshold = 0.5
 batch_size = 32
 n_sampling_each_round = 10
+initial_weights = load_weights("single_fl",0)
 
-lottery_fl_many_clients(dataset_name,n_client,n_sampling_each_round,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size)
+lottery_fl_many_clients(initial_weights,dataset_name,n_client,n_sampling_each_round,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size)

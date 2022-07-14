@@ -1,10 +1,10 @@
 import copy
-from utils import load_data_for_clients,load_val_data,initialize_mask_list,multiply_mask,client_update_lottery_fl,masked_fedavg,client_model_initialization_single_fl,model_growing,fill_zero_weights,print_avg_personalized_weights_each_layer,print_correlation_between_label_similarity_and_network_similarity,load_weights
+from utils import load_data_for_clients,load_val_data,initialize_mask_list,multiply_mask,client_update_lottery_fl,masked_fedavg,client_model_initialization_single_fl,model_growing,fill_zero_weights,calculate_accuracy,global_pruning,print_avg_personalized_weights_each_layer,print_correlation_between_label_similarity_and_network_similarity,load_weights
 from tensorflow import keras
+import tensorflow as tf
 
 
-
-def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate):
+def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value):
 
     # Initilization
     
@@ -26,7 +26,7 @@ def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset
     client_train,client_test = load_data_for_clients(dataset_name,n_client,dataset_id=dataset_id)
     client_val = load_val_data(dataset_name,dataset_id,n_client)
 
-
+    
     # Initializa weights and pruned rate
         
     weights_list = []
@@ -46,6 +46,7 @@ def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset
     for iteration in range(n_round):
         print("iteration =",iteration)
         accuracy_list = []
+        updated_weights_list_with_pruning_status = []
         for c_idx in range(n_client):
 
             # Update weights
@@ -69,15 +70,42 @@ def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset
             model = client_model_initialization(1,n_class,n_neurons)[0][0]
             model.set_weights(weights)
 
-            # Client update
+            
+            # Local training
+                
+            model.compile(optimizer=opt,
+                    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                    metrics=['accuracy'])
+            model.fit(client_train[c_idx][0],client_train[c_idx][1],epochs=epoch_per_round,verbose=0,batch_size = batch_size)
+            
+            accuracy = calculate_accuracy(model,client_val[c_idx][0],client_val[c_idx][1])
+
+            prune = False
+            if (accuracy > accuracy_threshold) and (pruned_rate_list[c_idx] < pruned_rate_target):
+                prune = True
+            
+            weights_list[c_idx] = model.get_weights()
+            updated_weights_list_with_pruning_status.append((model.get_weights(),prune))
             
 
-            updated_weights,accuracy,mask,pruned_rate = client_update_lottery_fl(opt,binary_mask_list[c_idx],weights,initial_weights,model,client_train[c_idx],client_val[c_idx],client_test[c_idx],accuracy_threshold,pruned_rate_list[c_idx],pruned_rate_each_round,pruned_rate_target,n_layer,epoch_per_round,n_conv_layer,batch_size=32,retrain=False)
-            weights_list[c_idx] = updated_weights
-            
-            binary_mask_list[c_idx] = mask
-            pruned_rate_list[c_idx] = pruned_rate
+        # Update global model
+
+        ## Global pruning
+                
+        binary_mask_list,pruned_rate_list = global_pruning(updated_weights_list_with_pruning_status,binary_mask_list,lambda_value,pruned_rate_each_round,n_conv_layer,pruned_rate_list,pruned_rate_target)
+
+        
+        
+        for c_idx in range(n_client):
+                
+            weights = multiply_mask(weights_list[c_idx],binary_mask_list[c_idx],n_conv_layer)
+            model = client_model_initialization(1,n_class,n_neurons)[0][0]
+            model.set_weights(weights)
+            accuracy = calculate_accuracy(model,client_test[c_idx][0],client_test[c_idx][1])
             accuracy_list.append(accuracy)
+            print("pruned Rate = ",pruned_rate_list[c_idx])
+            print("accuracy lottery_fl = ",accuracy)
+
         
         # Average accuracy
         print("average accuracy = ", sum(accuracy_list)/len(accuracy_list))
@@ -108,6 +136,7 @@ accuracy_threshold = 0.5
 batch_size = 32
 initial_mask_adjustment_rate = 0.2
 delta_r = 20
+lambda_value= 1
 initial_weights = load_weights("single_fl",0)
 
-lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate)
+lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value)

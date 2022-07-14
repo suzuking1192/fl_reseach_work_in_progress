@@ -23,8 +23,9 @@ from scipy.optimize import linear_sum_assignment
 import scipy
 from tensorflow.keras import initializers
 from keras.layers import BatchNormalization
-from utils import lenet5, client_model_initialization_lenet5_no_enc
+from utils import lenet5, client_model_initialization_lenet5_no_enc,load_weights
 from lottery_fl_non_iid import client_model_initialization_multiple_fc_for_local_training
+
 
 (cifar_x_train, cifar_y_train), (cifar_x_test, cifar_y_test) = tf.keras.datasets.cifar10.load_data()
 
@@ -153,7 +154,7 @@ def load_data(dataset_name,dataset_id,n_clients):
     return train, test
 
 
-def local_training(dataset_name_list,n_client,dataset_id,epoch_per_round,n_round,n_class,client_model_initialization,model_architecture_name,n_neurons):
+def local_training(initial_weights,dataset_name_list,n_client,dataset_id,epoch_per_round,n_round,n_class,client_model_initialization,model_architecture_name,n_neurons):
     #opt = keras.optimizers.SGD(learning_rate=0.01,momentum=0.5)
     #opt = keras.optimizers.SGD(learning_rate=0.001,momentum=0.5)
 
@@ -178,6 +179,9 @@ def local_training(dataset_name_list,n_client,dataset_id,epoch_per_round,n_round
                 #     print("step decay")
                 #     opt = keras.optimizers.SGD(learning_rate=0.01/(4**(int(i_round/50))),momentum=0.5)
 
+                # weight initialization
+                if i_round == 0:
+                    client_models[c_id].set_weights(initial_weights)
 
                 client_models[c_id].compile(optimizer=opt,
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -202,14 +206,15 @@ def local_training(dataset_name_list,n_client,dataset_id,epoch_per_round,n_round
         
 dataset_name_list = ["cifar10_20"]
 n_client = 10
-dataset_id = 1
+dataset_id = 0
 epoch_per_round = 10
 n_round = 100
 n_class = 10
 n_neurons = 32
+initial_weights = load_weights("single_fl",0)
 
 #local_training(dataset_name_list,n_client,dataset_id,epoch_per_round,n_round,n_class,client_model_initialization_lenet5_no_enc,"lenet5",n_neurons)
 
-local_training(dataset_name_list,n_client,dataset_id,epoch_per_round,n_round,n_class,client_model_initialization_single_fl,"singlefl",n_neurons)
+local_training(initial_weights,dataset_name_list,n_client,dataset_id,epoch_per_round,n_round,n_class,client_model_initialization_single_fl,"singlefl",n_neurons)
 
 #local_training(dataset_name_list,n_client,dataset_id,epoch_per_round,n_round,n_class,client_model_initialization,"cnn",n_neurons)

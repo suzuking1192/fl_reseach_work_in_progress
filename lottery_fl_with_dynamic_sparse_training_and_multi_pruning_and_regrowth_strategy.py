@@ -1,11 +1,11 @@
 import copy
 from mimetypes import init
-from utils import load_data_for_clients,load_val_data,initialize_mask_list,multiply_mask,client_update_lottery_fl,masked_fedavg,client_model_initialization_single_fl,model_growing,fill_zero_weights,calculate_accuracy,global_pruning,calculate_affinity_based_on_network,regrowth_based_on_affinity,print_avg_personalized_weights_each_layer,print_correlation_between_label_similarity_and_network_similarity,calculate_affinity_based_on_weight_divergence_of_locally_trained_models
+from utils import load_weights,load_data_for_clients,load_val_data,initialize_mask_list,multiply_mask,client_update_lottery_fl,masked_fedavg,client_model_initialization_single_fl,model_growing,fill_zero_weights,calculate_accuracy,global_pruning,calculate_affinity_based_on_network,regrowth_based_on_affinity,print_avg_personalized_weights_each_layer,print_correlation_between_label_similarity_and_network_similarity,calculate_affinity_based_on_weight_divergence_of_locally_trained_models
 from tensorflow import keras
 import tensorflow as tf
 
 
-def lottery_fl_with_dynamic_sparse_training_many_clients(dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value,similar_network_percent):
+def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value,similar_network_percent):
 
     # Initilization
     
@@ -27,8 +27,7 @@ def lottery_fl_with_dynamic_sparse_training_many_clients(dataset_name,n_client,n
     client_train,client_test = load_data_for_clients(dataset_name,n_client,dataset_id=dataset_id)
     client_val = load_val_data(dataset_name,dataset_id,n_client)
 
-    initial_weights = copy.deepcopy(global_model.get_weights()) # Random initialization
-
+    
     # Initializa weights and pruned rate
         
     weights_list = []
@@ -146,7 +145,7 @@ n_client = 10
 n_class = 10
 n_neurons = 32
 client_model_initialization = client_model_initialization_single_fl
-dataset_id = 1
+dataset_id = 0
 n_layer = 2
 n_conv_layer = 0
 epoch_per_round = 10
@@ -160,4 +159,5 @@ initial_mask_adjustment_rate = 0.2
 delta_r = 20
 lambda_value= 1
 similar_network_percent = 0.3
-lottery_fl_with_dynamic_sparse_training_many_clients(dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value,similar_network_percent)
+initial_weights = load_weights("single_fl",0)
+lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value,similar_network_percent)
