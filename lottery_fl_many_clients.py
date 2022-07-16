@@ -110,11 +110,11 @@ n_client = 10
 n_class = 10
 n_neurons = 32
 client_model_initialization = client_model_initialization_single_fl
-dataset_id = 0
+dataset_id = 2
 n_layer = 2
 n_conv_layer = 0
 epoch_per_round = 10
-n_round = 100
+n_round = 400
 opt = opt = keras.optimizers.SGD(learning_rate=0.01,momentum=0.5)
 pruned_rate_each_round = 0.2
 pruned_rate_target = 0.7

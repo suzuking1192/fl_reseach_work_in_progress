@@ -158,22 +158,23 @@ def local_training(initial_weights,dataset_name_list,n_client,dataset_id,epoch_p
     #opt = keras.optimizers.SGD(learning_rate=0.01,momentum=0.5)
     #opt = keras.optimizers.SGD(learning_rate=0.001,momentum=0.5)
 
-    decayrate = 0
+    
     batch_size = 32
+    opt = keras.optimizers.SGD(learning_rate=0.01,momentum=0.5)
     
     for dataset_name in dataset_name_list:
         client_models = client_model_initialization(n_client,n_class,n_neurons)
         client_train,client_test = load_data_for_clients(dataset_name,n_client,dataset_id)
         
-        accuracy_dict ={}
+        
         
         for i_round in range(n_round):
             print("round: ", i_round)
-            accuracy_dict[i_round] = {}
+            accuracy_list = []
             
             for c_id in range(n_client):
 
-                opt = keras.optimizers.SGD(learning_rate=0.01*(1/(1+decayrate*epoch_per_round))**i_round,momentum=0.5)
+                
 
                 # if i_round >= 50:
                 #     print("step decay")
@@ -190,13 +191,12 @@ def local_training(initial_weights,dataset_name_list,n_client,dataset_id,epoch_p
                 
                 accuracy = calculate_accuracy(client_models[c_id],client_test[c_id][0],client_test[c_id][1])
                 print("accuracy = ",accuracy)
-                accuracy_dict[i_round][c_id] = accuracy
+                accuracy_list.append(accuracy)
+            
+            print("average accuracy = ",sum(accuracy_list)/n_client)
+                
         
-        res = []
-        for i in range(n_round):
-            avg = np.average(list(accuracy_dict[i].values()))
-            res.append([str(dataset_name),dataset_id,n_class,n_client,i,epoch_per_round,'local_training',avg,model_architecture_name])
-            print("average accuracy = ", avg)
+        
         # res_df = pd.DataFrame(res,columns=['dataset','dataset_id','n_class','n_client','round','local_epoch','fl_algorithm','avg_test_accuracy','model_architecture'])
         # res_df['datetime'] = datetime.now()
         # current_res_df = pd.read_csv('result/neuron_level_fl_test.csv')
@@ -208,7 +208,7 @@ dataset_name_list = ["cifar10_20"]
 n_client = 10
 dataset_id = 0
 epoch_per_round = 10
-n_round = 100
+n_round = 400
 n_class = 10
 n_neurons = 32
 initial_weights = load_weights("single_fl",0)

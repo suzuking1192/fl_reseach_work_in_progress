@@ -61,7 +61,7 @@ def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset
             if (pruned_rate_list[c_idx] >=pruned_rate_target) and(iteration%delta_r == 1):
                 mask_readjustment_rate = initial_mask_adjustment_rate*(1/(iteration/delta_r))
                 #mask_readjustment_rate = initial_mask_adjustment_rate
-                print("mask_regrowth_rate = ",mask_readjustment_rate)
+                #print("mask_regrowth_rate = ",mask_readjustment_rate)
                 binary_mask_list[c_idx],pruned_rate_list[c_idx],next_prune_rate = model_growing(binary_mask_list[c_idx],mask_readjustment_rate,n_conv_layer)
 
             
@@ -103,8 +103,8 @@ def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset
             model.set_weights(weights)
             accuracy = calculate_accuracy(model,client_test[c_idx][0],client_test[c_idx][1])
             accuracy_list.append(accuracy)
-            print("pruned Rate = ",pruned_rate_list[c_idx])
-            print("accuracy lottery_fl = ",accuracy)
+            #print("pruned Rate = ",pruned_rate_list[c_idx])
+            #print("accuracy lottery_fl = ",accuracy)
 
         
         # Average accuracy
@@ -124,19 +124,19 @@ n_client = 10
 n_class = 10
 n_neurons = 32
 client_model_initialization = client_model_initialization_single_fl
-dataset_id = 0
+dataset_id = 2
 n_layer = 2
 n_conv_layer = 0
 epoch_per_round = 10
-n_round = 100
-opt = opt = keras.optimizers.SGD(learning_rate=0.01,momentum=0.5)
+n_round = 400
+opt = keras.optimizers.SGD(learning_rate=0.01,momentum=0.5)
 pruned_rate_each_round = 0.2
 pruned_rate_target = 0.7
 accuracy_threshold = 0.5
 batch_size = 32
 initial_mask_adjustment_rate = 0.2
 delta_r = 20
-lambda_value= 1
+lambda_value= 5
 initial_weights = load_weights("single_fl",0)
 
 lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value)
