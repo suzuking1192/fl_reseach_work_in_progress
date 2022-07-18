@@ -1,11 +1,11 @@
 import copy
 from mimetypes import init
-from utils import load_weights,load_data_for_clients,load_val_data,initialize_mask_list,multiply_mask,client_update_lottery_fl,masked_fedavg,client_model_initialization_single_fl,model_growing,fill_zero_weights,calculate_accuracy,global_pruning,calculate_affinity_based_on_network,regrowth_based_on_affinity,print_avg_personalized_weights_each_layer,print_correlation_between_label_similarity_and_network_similarity,calculate_affinity_based_on_weight_divergence_of_locally_trained_models
+from utils import load_weights,load_data_for_clients,load_val_data,initialize_mask_list,multiply_mask,client_update_lottery_fl,masked_fedavg,client_model_initialization_single_fl,model_growing,fill_zero_weights,calculate_accuracy,global_pruning,calculate_affinity_based_on_network,regrowth_based_on_affinity,print_avg_personalized_weights_each_layer,print_correlation_between_label_similarity_and_network_similarity,calculate_affinity_based_on_weight_divergence_of_locally_trained_models,create_selected_client_idx_list,regrowth_based_on_affinity_c_idxs
 from tensorflow import keras
 import tensorflow as tf
 
 
-def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value,similar_network_percent):
+def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value,parameter_to_multiply_avg):
 
     # Initilization
     
@@ -54,6 +54,15 @@ def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset
         model.fit(client_train[c_idx][0],client_train[c_idx][1],epochs=epoch_per_round,verbose=0,batch_size = batch_size)
         locally_trained_weights_list.append(model.get_weights())
 
+    # Create affinity matrix
+    affinity_mat = []
+    for c_idx in range(n_client):
+        affinty_list = calculate_affinity_based_on_weight_divergence_of_locally_trained_models(locally_trained_weights_list,client_train,c_idx,n_layer)
+        affinity_mat.append(affinty_list)
+    # Create selected idx list
+    selected_idx_mat = create_selected_client_idx_list(affinity_mat,parameter_to_multiply_avg)
+    print("selected_idx_mat =",selected_idx_mat)
+
     # Start training
     for iteration in range(n_round):
         print("iteration =",iteration)
@@ -74,11 +83,9 @@ def lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset
                 mask_readjustment_rate = initial_mask_adjustment_rate*(1/(iteration/delta_r))
                 #mask_readjustment_rate = initial_mask_adjustment_rate
                 #print("mask_regrowth_rate = ",mask_readjustment_rate)
-                # Create affinity matrix
-                affinty_list = calculate_affinity_based_on_weight_divergence_of_locally_trained_models(locally_trained_weights_list,client_train,c_idx,n_layer)
-
+                
                 # Regrowth based on affinity matrix
-                binary_mask_list[c_idx] = regrowth_based_on_affinity(binary_mask_list[c_idx],binary_mask_list,affinty_list,mask_readjustment_rate/2,similar_network_percent)
+                binary_mask_list[c_idx] = regrowth_based_on_affinity_c_idxs(binary_mask_list[c_idx],binary_mask_list,selected_idx_mat[c_idx],mask_readjustment_rate/2)
 
                 # Regrowth randomly
                 binary_mask_list[c_idx],pruned_rate_list[c_idx],next_prune_rate = model_growing(binary_mask_list[c_idx],mask_readjustment_rate/2,n_conv_layer)
@@ -145,7 +152,7 @@ n_client = 10
 n_class = 10
 n_neurons = 32
 client_model_initialization = client_model_initialization_single_fl
-dataset_id = 2
+dataset_id = 3
 n_layer = 2
 n_conv_layer = 0
 epoch_per_round = 10
@@ -156,8 +163,8 @@ pruned_rate_target = 0.7
 accuracy_threshold = 0.5
 batch_size = 32
 initial_mask_adjustment_rate = 0.2
-delta_r = 1
-lambda_value= 5
-similar_network_percent = 0.3
-initial_weights = load_weights("single_fl",0)
-lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value,similar_network_percent)
+delta_r = 20
+lambda_value= 1
+parameter_to_multiply_avg = 0.8
+initial_weights = load_weights("single_fl",1)
+lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value,parameter_to_multiply_avg)

@@ -13,4 +13,4 @@ def create_initial_weights(model_initialization,model_id,model_name,n_class,n_ne
 
 
 
-create_initial_weights(client_model_initialization_single_fl,model_id=0,model_name="single_fl",n_class=10,n_neurons=32)
+create_initial_weights(client_model_initialization_single_fl,model_id=1,model_name="single_fl",n_class=10,n_neurons=32)

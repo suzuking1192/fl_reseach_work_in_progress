@@ -305,7 +305,7 @@ def weights_pruning(model,pruned_rate,pruned_rate_each_round,n_layer,mask,n_conv
 def client_update_lottery_fl(opt,mask,weights,initial_weights,model,client_train,client_val,client_test,accuracy_threshold,pruned_rate,pruned_rate_each_round,pruned_rate_target,n_layer,epoch_per_round,n_conv_layer,batch_size=32,retrain=True):
     
     
-    print("pruned_rate = ",pruned_rate)
+    #print("pruned_rate = ",pruned_rate)
     
     model.compile(optimizer=opt,
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -538,12 +538,16 @@ def global_pruning(weights_list_with_pruning_status,mask_list,lambda_value,prune
                                 weight_list_in_one_position = []
                                 weight_list_in_one_position_without_ref_weight = []
                                 for c_idx in range(n_client):
-                                    if c_id == c_idx:
-                                        weight_list_in_one_position.append(weights_list_with_pruning_status[c_idx][0][l*2][i][o])
-                                    else:
-                                        weight_list_in_one_position_without_ref_weight.append(weights_list_with_pruning_status[c_idx][0][l*2][i][o])
-                                        weight_list_in_one_position.append(weights_list_with_pruning_status[c_idx][0][l*2][i][o])
-                                std_diff = abs(statistics.pstdev(weight_list_in_one_position) - statistics.pstdev(weight_list_in_one_position_without_ref_weight))
+                                    if mask_list[c_idx][l][i][o] != 0:
+                                        if c_id == c_idx:
+                                            weight_list_in_one_position.append(weights_list_with_pruning_status[c_idx][0][l*2][i][o])
+                                        else:
+                                            weight_list_in_one_position_without_ref_weight.append(weights_list_with_pruning_status[c_idx][0][l*2][i][o])
+                                            weight_list_in_one_position.append(weights_list_with_pruning_status[c_idx][0][l*2][i][o])
+                                if (len(weight_list_in_one_position) == 0) or (len(weight_list_in_one_position_without_ref_weight) == 0):
+                                    std_diff = 0
+                                else:
+                                    std_diff = abs(statistics.pstdev(weight_list_in_one_position) - statistics.pstdev(weight_list_in_one_position_without_ref_weight))
                                 if std_diff == 0:
                                     std_weights_list.append(std_diff)
                                     std_weights_list_multi_dim[l][i].append(std_diff)
@@ -614,6 +618,7 @@ def global_pruning(weights_list_with_pruning_status,mask_list,lambda_value,prune
             
             updated_mask_list.append(mask)
             updated_pruned_rate_list.append(pruning_percent)
+            mask_list[c_id] = copy.deepcopy(mask)
 
             
 
@@ -751,6 +756,97 @@ def regrowth_based_on_affinity(binary_mask,binary_mask_list_all,affinty_list,mas
 
     return mask
 
+def create_selected_client_idx_list(affinity_mat,parameter_to_multiply_avg):
+
+    # calculate average of affinity measure
+    affinity_measure_list = []
+    n_client = len(affinity_mat)
+
+    for c_idx in range(n_client):
+        for compared_idx in range(n_client):
+            if c_idx != compared_idx:
+                affinity_measure_list.append(affinity_mat[c_idx][compared_idx])
+    
+    avg_affinity_measure = sum(affinity_measure_list)/len(affinity_measure_list)
+    adjusted_threshold = avg_affinity_measure * parameter_to_multiply_avg
+
+    
+
+
+    # select similar clients
+    selected_idxs = []
+    for c_idx in range(n_client):
+        selected_idxs.append([])
+        for compared_idx in range(n_client):
+            if c_idx != compared_idx:
+                if affinity_mat[c_idx][compared_idx] > adjusted_threshold: # affinity measure is negative valuse because it is multiples by -1 with weight divergence
+                    selected_idxs[c_idx].append(compared_idx)
+
+    return selected_idxs
+
+def regrowth_based_on_affinity_c_idxs(binary_mask,binary_mask_list_all,selected_client_idx,mask_readjustment_rate):
+    mask = copy.deepcopy(binary_mask)
+    
+    n_layer = len(binary_mask)
+
+    counter = 0
+    overlap = 0 
+    for l in range(n_layer):
+        # if l < n_conv_layer:
+        #     pass # add later
+        # else:
+            # FC layer
+            input_size = len(mask[l])
+            output_size = len(mask[l][0])
+
+            for i in range(input_size):
+                for o in range(output_size):
+                    
+                    if mask[l][i][o] == 0:
+                        counter += 1
+                        overlap_status = False
+                        for c_idx in selected_client_idx:
+                            if binary_mask_list_all[c_idx][l][i][o] == 1:
+                                overlap_status = True
+                        if overlap_status == True:
+                            overlap += 1
+
+                    
+    # randomly select necessary number of indexes
+    if int(counter*mask_readjustment_rate) > overlap-1:
+        idx_list = range(overlap)
+    else:
+        idx_list = random.sample(range(overlap-1), int(counter*mask_readjustment_rate))
+
+    
+
+    # Assign 1 to those mask
+    idx_counter = 0
+    for l in range(n_layer):
+        # if l < n_conv_layer:
+        #     pass # add later
+        # else:
+            # FC layer
+            input_size = len(mask[l])
+            output_size = len(mask[l][0])
+
+            for i in range(input_size):
+                for o in range(output_size):
+                    if mask[l][i][o] == 0:
+                        overlap_status = False
+                        for c_idx in selected_client_idx:
+                            if binary_mask_list_all[c_idx][l][i][o] == 1:
+                                overlap_status = True
+                        if overlap_status == True:
+                            if idx_counter in idx_list:
+                                mask[l][i][o] = 1
+                            
+
+                            idx_counter += 1
+
+    return mask
+
+
 def print_avg_personalized_weights_each_layer(mask_list):
     n_client = len(mask_list)
     n_layer = len(mask_list[0])
@@ -855,7 +951,7 @@ def print_correlation_between_label_similarity_and_network_similarity(client_tra
 
     for c_idx in range(n_client):
         affinity_list = calculate_affinity_based_on_network(mask_list[c_idx],mask_list,n_conv_layer)
-        print("affinity_list = ",affinity_list)
+        #print("affinity_list = ",affinity_list)
         for ref_c_idx in range(n_client):
             if c_idx == ref_c_idx:
                 pass
@@ -919,3 +1015,14 @@ def print_correlation_between_label_similarity_and_pruned_model_divergence(clien
     corr, _ = pearsonr(label_similarity_list, weights_divergence_list)
 
     print("correlation between label similarity and weight divergence = ",corr)
+
+
+def load_weights(model_name,model_id):
+
+    filename = "data/"+ str(model_name) +"/" + str(model_id)
+
+    model = tf.keras.models.load_model(filename)
+
+    weights = model.get_weights()
+
+    return weights

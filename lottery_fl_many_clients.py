@@ -110,7 +110,7 @@ n_client = 10
 n_class = 10
 n_neurons = 32
 client_model_initialization = client_model_initialization_single_fl
-dataset_id = 2
+dataset_id = 3
 n_layer = 2
 n_conv_layer = 0
 epoch_per_round = 10
@@ -121,6 +121,6 @@ pruned_rate_target = 0.7
 accuracy_threshold = 0.5
 batch_size = 32
 n_sampling_each_round = 10
-initial_weights = load_weights("single_fl",0)
+initial_weights = load_weights("single_fl",1)
 
 lottery_fl_many_clients(initial_weights,dataset_name,n_client,n_sampling_each_round,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size)
