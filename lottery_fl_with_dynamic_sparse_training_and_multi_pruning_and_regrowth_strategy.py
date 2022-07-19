@@ -152,7 +152,7 @@ n_client = 10
 n_class = 10
 n_neurons = 32
 client_model_initialization = client_model_initialization_single_fl
-dataset_id = 3
+dataset_id = 1
 n_layer = 2
 n_conv_layer = 0
 epoch_per_round = 10
@@ -166,5 +166,5 @@ initial_mask_adjustment_rate = 0.2
 delta_r = 20
 lambda_value= 1
 parameter_to_multiply_avg = 0.8
-initial_weights = load_weights("single_fl",1)
+initial_weights = load_weights("single_fl",0)
 lottery_fl_with_dynamic_sparse_training_many_clients(initial_weights,dataset_name,n_client,n_class,n_neurons,client_model_initialization,dataset_id,n_layer,n_conv_layer,epoch_per_round,n_round,opt,pruned_rate_each_round,pruned_rate_target,accuracy_threshold,batch_size,delta_r,initial_mask_adjustment_rate,lambda_value,parameter_to_multiply_avg)
