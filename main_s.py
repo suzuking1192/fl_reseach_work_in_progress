@@ -15,15 +15,14 @@ from src.models import *
 from src.pruning import *
 from src.sub_fedavg import * 
 from src.client import * 
-from src.utils.options_u import args_parser 
-import pickle
-
+from src.utils.options_s import args_parser 
 
 args = args_parser()
 
+args.cfg_prune = [3, 'M', 8, 'M']     # final pruning cofiguration: it does not go lower than this
 args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() else 'cpu')
 
-#torch.cuda.set_device(args.gpu) ## Setting cuda on GPU 
+torch.cuda.set_device(args.gpu) ## Setting cuda on GPU 
 ## Data partitioning section 
 
 if args.dataset == 'cifar10':
@@ -43,28 +42,10 @@ if args.dataset == 'cifar10':
     
     if args.noniid: 
         if args.shard:
-            if args.load_data:
-                print(" load non IID dataset")
-                print(f'--CIFAR-10 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-
-                # Load dataset
-                file_name_train = 'src/data/'  + str(args.dataset) + "/train.p"
-                with open(file_name_train, 'rb') as fp:
-                    user_groups_train = pickle.load(fp)
-                
-                file_name_test = 'src/data/'  + str(args.dataset) + "/test.p"
-                with open(file_name_test, 'rb') as fp:
-                    user_groups_test = pickle.load(fp)
-                
-                file_name_val = 'src/data/'  + str(args.dataset) + "/val.p"
-                with open(file_name_val, 'rb') as fp:
-                    user_groups_val = pickle.load(fp)
-
-            else:
-                print(f'--CIFAR-10 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-                user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
-                                args.num_users, nclass_cifar10, nsamples_cifar10, args.split_test)
-            
+            print(f'--CIFAR-10 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
+            user_groups_train, user_groups_test = noniid_shard(args.dataset, train_dataset, test_dataset, 
+                            args.num_users, nclass_cifar10, nsamples_cifar10, args.split_test)
+        
         elif args.label: 
             print(f'--CIFAR-10 Non-IID-- {args.nclass} random Label, Sample per label {args.nsample_pc}')
             user_groups_train, user_groups_test = \
@@ -94,7 +75,7 @@ elif args.dataset == 'cifar100':
     if args.noniid: 
         if args.shard:
             print(f'--CIFAR-100 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-            user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
+            user_groups_train, user_groups_test = noniid_shard(args.dataset, train_dataset, test_dataset, 
                         args.num_users, nclass_cifar100, nsamples_cifar100, args.split_test)
             
         elif args.label: 
@@ -122,7 +103,7 @@ elif args.dataset == 'mnist':
     if args.noniid: 
         if args.shard:
             print(f'--MNIST Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-            user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
+            user_groups_train, user_groups_test = noniid_shard(args.dataset, train_dataset, test_dataset, 
                             args.num_users, nclass_mnist, nsamples_mnist, args.split_test)
         elif args.label: 
             print(f'--MNIST Non-IID-- {args.nclass} random Labels, Sample per label {args.nsample_pc}')
@@ -164,22 +145,23 @@ for i in range(args.num_users):
           #f' Num Train: {train_count_per_client}, Num Test: {test_count_per_client}')
         
 ## 
+    
 # build model
 print(f'MODEL: {args.model}, Dataset: {args.dataset}')
 
 users_model = []
 if args.model == 'lenet5' and args.dataset == 'cifar10':
-    net_glob = LeNet5Cifar10().to(args.device)
-    net_glob.apply(weight_init)
-    users_model = [LeNet5Cifar10().to(args.device).apply(weight_init) for _ in range(args.num_users)]
+    net_glob = LeNetBN5Cifar(nclasses = 10, cfg=None, ks=args.ks).to(args.device)
+    users_model = [LeNetBN5Cifar(nclasses = 10, cfg=None, ks=args.ks).to(args.device)
+                   for _ in range(args.num_users)]
 elif args.model == 'lenet5' and args.dataset == 'cifar100':
-    net_glob = LeNet5Cifar100().to(args.device)
-    net_glob.apply(weight_init)
-    users_model = [LeNet5Cifar100().to(args.device).apply(weight_init) for _ in range(args.num_users)]
+    net_glob = LeNetBN5Cifar(nclasses = 100, cfg=None, ks=args.ks).to(args.device)
+    users_model = [LeNetBN5Cifar(nclasses = 100, cfg=None, ks=args.ks).to(args.device)
+                   for _ in range(args.num_users)]
 elif args.model == 'lenet5' and args.dataset == 'mnist':
-    net_glob = LeNet5Mnist().to(args.device)
-    net_glob.apply(weight_init)
-    users_model = [LeNet5Mnist().to(args.device).apply(weight_init) for _ in range(args.num_users)]
+    net_glob = LeNetBN5Mnist(cfg=None, ks=args.ks).to(args.device)
+    users_model = [LeNetBN5Mnist(cfg=None, ks=args.ks).to(args.device) 
+                   for _ in range(args.num_users)]
 
 if args.load_initial:
     initial_state_dict = torch.load(args.load_initial)
@@ -191,19 +173,31 @@ server_state_dict = copy.deepcopy(net_glob.state_dict())
 for i in range(args.num_users):
     users_model[i].load_state_dict(initial_state_dict)
     
-## 
-mask_init = make_init_mask(net_glob)
+    
+total = 0 
+total_ch = 0
+for name, param in net_glob.named_parameters():
+    print(name, param.size())
+    total += np.prod(param.size())
+    if 'conv' in name or 'bn' in name: 
+        total_ch += np.prod(param.size())
+    
+print('Total Param: {}'.format(total))
+print('Total Channel Param: {}'.format(total_ch))
+     
+    
+mask_ch_init = make_init_mask_ch(net_glob)
+mask_fc_init = make_init_mask_fc(net_glob)
 
 clients = []
-    
+        
 for idx in range(args.num_users):
-    clients.append(Client_Sub_Un(idx, copy.deepcopy(users_model[idx]), args.local_bs, args.local_ep, 
-               args.lr, args.momentum, args.device, copy.deepcopy(mask_init), 
-               args.pruning_target, train_dataset, user_groups_train[idx], 
-               test_dataset, user_groups_test[idx],
-               test_dataset, user_groups_val[idx])) 
+    clients.append(Client_Sub_S(idx, copy.deepcopy(users_model[idx]), args.local_bs, args.local_ep, 
+               args.lr, args.momentum, args.device, copy.deepcopy(mask_ch_init), copy.deepcopy(mask_fc_init),
+               args.cfg_prune, args.pruning_target, args.in_ch, args.ks, args,
+               train_dataset, user_groups_train[idx], test_dataset, user_groups_test[idx])) 
     
-## 
+
 loss_train = []
 
 init_tracc_pr = []  # initial train accuracy for each round 
@@ -217,19 +211,23 @@ final_tloss_pr = [] # final test loss for each round
 
 clients_best_acc = [0 for _ in range(args.num_users)]
 w_locals, loss_locals = [], []
-masks = []
+masks_ch = []
+masks_fc = []
 
 init_local_tacc = []       # initial local test accuracy at each round 
-final_local_tacc = []  # final local test accuracy at each round 
+final_local_tacc = []      # final local test accuracy at each round 
 
 init_local_tloss = []      # initial local test loss at each round 
 final_local_tloss = []     # final local test loss at each round 
 
 ckp_avg_tacc = []
-ckp_avg_pruning = []
+ckp_avg_pruning_total = []
+ckp_avg_pruning_ch = []
+ckp_avg_pruning_fc = []
 ckp_avg_best_tacc_before = []
 ckp_avg_best_tacc_after = []
 
+## Train Loop
 for iteration in range(args.rounds):
         
     m = max(int(args.frac * args.num_users), 1)
@@ -238,27 +236,32 @@ for iteration in range(args.rounds):
     if args.is_print:
         print(f'###### ROUND {iteration+1} ######')
         print(f'Clients {idxs_users}')
-    
+
     for idx in idxs_users:
                     
         if iteration+1 > 1:
-            dic = Sub_FedAvg_U_initial(copy.deepcopy(clients[idx].get_mask()), 
-                                     copy.deepcopy(clients[idx].get_net()), server_state_dict)
+            dic = Sub_FedAvg_S_initial(copy.deepcopy(clients[idx].get_mask_ch()), 
+                                       copy.deepcopy(clients[idx].get_mask_fc()),
+                                       copy.deepcopy(clients[idx].get_net()), server_state_dict, 
+                                       args.in_ch, args.ks)
             
             clients[idx].set_state_dict(dic) 
         
-        loss, acc = clients[idx].eval_test()        
+        loss, acc = clients[idx].eval_test(clients[idx].get_net())        
             
         init_local_tacc.append(acc)
         init_local_tloss.append(loss)
             
-        loss = clients[idx].train(args.pruning_percent, args.dist_thresh, args.acc_thresh, is_print=False)
+        loss = clients[idx].train(args.pruning_percent_ch, args.pruning_percent_fc,
+                                  args.dist_thresh_ch, args.dist_thresh_fc, args.acc_thresh, 
+                                  copy.deepcopy(net_glob), args.is_print)
                         
-        masks.append(copy.deepcopy(clients[idx].get_mask()))     
+        masks_ch.append(copy.deepcopy(clients[idx].get_mask_ch())) 
+        masks_fc.append(copy.deepcopy(clients[idx].get_mask_fc()))  
         w_locals.append(copy.deepcopy(clients[idx].get_state_dict()))
         loss_locals.append(copy.deepcopy(loss))
                         
-        loss, acc = clients[idx].eval_test()
+        loss, acc = clients[idx].eval_test(clients[idx].get_net())
         
         if acc > clients_best_acc[idx]:
             clients_best_acc[idx] = acc
@@ -266,7 +269,8 @@ for iteration in range(args.rounds):
         final_local_tacc.append(acc)
         final_local_tloss.append(loss)           
         
-    server_state_dict = Sub_FedAVG_U(server_state_dict, w_locals, masks)
+    server_state_dict = Sub_FedAVG_S(server_state_dict, w_locals, masks_ch, masks_fc, copy.deepcopy(net_glob),
+                                    args.ks, args.in_ch)
     
     # print loss
     loss_avg = sum(loss_locals) / len(loss_locals)
@@ -274,8 +278,8 @@ for iteration in range(args.rounds):
     avg_init_tacc = sum(init_local_tacc) / len(init_local_tacc)
     avg_final_tloss = sum(final_local_tloss) / len(final_local_tloss)
     avg_final_tacc = sum(final_local_tacc) / len(final_local_tacc)
-    
-    if args.is_print:    
+        
+    if args.is_print:
         print('## END OF ROUND ##')
         template = 'Average Train loss {:.3f}'
         print(template.format(iteration+1, loss_avg))
@@ -289,28 +293,39 @@ for iteration in range(args.rounds):
     if iteration%args.print_freq == 0:
         print('--- PRINTING ALL CLIENTS STATUS ---')
         best_acc_before_pruning = []
-        pruning_state = []
+        pruning_total_state = []
+        pruning_ch_state = []
+        pruning_fc_state = []
         current_acc = []
         for k in range(args.num_users):
             best_acc_before_pruning.append(clients[k].get_best_acc())
-            pruning_state.append(clients[k].get_pruning())
-            loss, acc = clients[k].eval_test() 
+            pruning_total_state.append(clients[k].get_pruned_total())
+            pruning_ch_state.append(clients[k].get_pruned_ch())
+            pruning_fc_state.append(clients[k].get_pruned_fc())
+            
+            loss, acc = clients[k].eval_test(clients[idx].get_net()) 
             current_acc.append(acc)
             
-            template = ("Client {:3d}, labels {}, count {}, pruning_state {:3.3f}, "
+            template = ("Client {:3d}, labels {}, count {}, pruning_total {:3.3f}, pruning_ch {:3.3f}, "
+                        "pruning_fc {:3.3f}, "
                        "best_acc_befor_pruning {:3.3f}, after_pruning {:3.3f}, current_acc {:3.3f} \n")
             
-            print(template.format(k, users_train_labels[k], clients[k].get_count(), pruning_state[-1], 
-                                 best_acc_before_pruning[-1], clients_best_acc[k], current_acc[-1]))
+            print(template.format(k, users_train_labels[k], clients[k].get_count(), pruning_total_state[-1],
+                                  pruning_ch_state[-1], pruning_fc_state[-1], best_acc_before_pruning[-1], 
+                                  clients_best_acc[k], current_acc[-1]))
             
-        template = ("Round {:1d}, Avg Pruning {:3.3f}, Avg current_acc {:3.3f}, "
-                     "Avg best_acc_before_pruning {:3.3f}, after_pruning {:3.3f}")
+        template = ("Round {:1d}, Avg Pruning total {:3.3f}, Pruning ch {:3.3f}, "
+                    " Pruning fc {:3.3f}, Avg current_acc {:3.3f}, "
+                     "best_acc_before_pruning {:3.3f}, after_pruning {:3.3f}")
         
-        print(template.format(iteration+1, np.mean(pruning_state), np.mean(current_acc), 
+        print(template.format(iteration+1, np.mean(pruning_total_state), np.mean(pruning_ch_state),
+                              np.mean(pruning_fc_state), np.mean(current_acc), 
                               np.mean(best_acc_before_pruning), np.mean(clients_best_acc)))
         
         ckp_avg_tacc.append(np.mean(current_acc))
-        ckp_avg_pruning.append(np.mean(pruning_state))
+        ckp_avg_pruning_total.append(np.mean(pruning_total_state))
+        ckp_avg_pruning_ch.append(np.mean(pruning_ch_state))
+        ckp_avg_pruning_fc.append(np.mean(pruning_fc_state))
         ckp_avg_best_tacc_before.append(np.mean(best_acc_before_pruning))
         ckp_avg_best_tacc_after.append(np.mean(clients_best_acc))
         
@@ -323,7 +338,8 @@ for iteration in range(args.rounds):
     final_tloss_pr.append(avg_final_tloss)
     
     ## clear the placeholders for the next round 
-    masks.clear()
+    masks_ch.clear()
+    masks_fc.clear()
     w_locals.clear()
     loss_locals.clear()
     init_local_tacc.clear()
@@ -334,6 +350,7 @@ for iteration in range(args.rounds):
     ## calling garbage collector 
     gc.collect()
     
+    
 ## Printing Final Test and Train ACC / LOSS
 test_loss = []
 test_acc = []
@@ -341,12 +358,12 @@ train_loss = []
 train_acc = []
 
 for idx in range(args.num_users):        
-    loss, acc = clients[idx].eval_test()
+    loss, acc = clients[idx].eval_test(clients[idx].get_net())
         
     test_loss.append(loss)
     test_acc.append(acc)
     
-    loss, acc = clients[idx].eval_train()
+    loss, acc = clients[idx].eval_train(clients[idx].get_net())
     
     train_loss.append(loss)
     train_acc.append(acc)

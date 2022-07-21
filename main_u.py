@@ -16,14 +16,12 @@ from src.pruning import *
 from src.sub_fedavg import * 
 from src.client import * 
 from src.utils.options_u import args_parser 
-import pickle
-
 
 args = args_parser()
 
 args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() else 'cpu')
 
-#torch.cuda.set_device(args.gpu) ## Setting cuda on GPU 
+torch.cuda.set_device(args.gpu) ## Setting cuda on GPU 
 ## Data partitioning section 
 
 if args.dataset == 'cifar10':
@@ -43,28 +41,10 @@ if args.dataset == 'cifar10':
     
     if args.noniid: 
         if args.shard:
-            if args.load_data:
-                print(" load non IID dataset")
-                print(f'--CIFAR-10 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-
-                # Load dataset
-                file_name_train = 'src/data/'  + str(args.dataset) + "/train.p"
-                with open(file_name_train, 'rb') as fp:
-                    user_groups_train = pickle.load(fp)
-                
-                file_name_test = 'src/data/'  + str(args.dataset) + "/test.p"
-                with open(file_name_test, 'rb') as fp:
-                    user_groups_test = pickle.load(fp)
-                
-                file_name_val = 'src/data/'  + str(args.dataset) + "/val.p"
-                with open(file_name_val, 'rb') as fp:
-                    user_groups_val = pickle.load(fp)
-
-            else:
-                print(f'--CIFAR-10 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-                user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
-                                args.num_users, nclass_cifar10, nsamples_cifar10, args.split_test)
-            
+            print(f'--CIFAR-10 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
+            user_groups_train, user_groups_test = noniid_shard(args.dataset, train_dataset, test_dataset, 
+                            args.num_users, nclass_cifar10, nsamples_cifar10, args.split_test)
+        
         elif args.label: 
             print(f'--CIFAR-10 Non-IID-- {args.nclass} random Label, Sample per label {args.nsample_pc}')
             user_groups_train, user_groups_test = \
@@ -94,7 +74,7 @@ elif args.dataset == 'cifar100':
     if args.noniid: 
         if args.shard:
             print(f'--CIFAR-100 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-            user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
+            user_groups_train, user_groups_test = noniid_shard(args.dataset, train_dataset, test_dataset, 
                         args.num_users, nclass_cifar100, nsamples_cifar100, args.split_test)
             
         elif args.label: 
@@ -122,7 +102,7 @@ elif args.dataset == 'mnist':
     if args.noniid: 
         if args.shard:
             print(f'--MNIST Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-            user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
+            user_groups_train, user_groups_test = noniid_shard(args.dataset, train_dataset, test_dataset, 
                             args.num_users, nclass_mnist, nsamples_mnist, args.split_test)
         elif args.label: 
             print(f'--MNIST Non-IID-- {args.nclass} random Labels, Sample per label {args.nsample_pc}')
@@ -200,8 +180,7 @@ for idx in range(args.num_users):
     clients.append(Client_Sub_Un(idx, copy.deepcopy(users_model[idx]), args.local_bs, args.local_ep, 
                args.lr, args.momentum, args.device, copy.deepcopy(mask_init), 
                args.pruning_target, train_dataset, user_groups_train[idx], 
-               test_dataset, user_groups_test[idx],
-               test_dataset, user_groups_val[idx])) 
+               test_dataset, user_groups_test[idx])) 
     
 ## 
 loss_train = []
