@@ -21,7 +21,7 @@ args = args_parser()
 
 args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() else 'cpu')
 
-#torch.cuda.set_device(args.gpu) ## Setting cuda on GPU 
+torch.cuda.set_device(args.gpu) ## Setting cuda on GPU 
 ## Data partitioning section 
 
 if args.dataset == 'cifar10':
