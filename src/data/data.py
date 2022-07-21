@@ -1,8 +1,10 @@
 
 from cmath import nan
+import copy
 import numpy as np 
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
+import pickle
 
 class DatasetSplit(Dataset):
     def __init__(self, dataset, idxs):
@@ -59,6 +61,7 @@ def noniid_shard(dataset_name, train_dataset, test_dataset, num_users, n_class, 
     
     dict_users_train = {i: np.array([], dtype='int64') for i in range(num_users)}
     dict_users_test = {i: np.array([], dtype='int64') for i in range(num_users)}
+    dict_users_val = {i: np.array([], dtype='int64') for i in range(num_users)}
     
     num_samples_test_per_class = int(img_test_pc/num_users)
     num_shards_test_per_class = int(img_test_pc/num_samples_test_per_class)
@@ -115,7 +118,26 @@ def noniid_shard(dataset_name, train_dataset, test_dataset, num_users, n_class, 
             
         #print(set(labels_test_raw[dict_users_test[i].astype(int)]))
 
-    return dict_users_train, dict_users_test
+        # divide test and validation data
+        percentage_of_val = 0.2
+        num_test_pc = len(dict_users_test[i])
+        dict_users_val[i] = copy.deepcopy(dict_users_test[i][: int(num_test_pc*percentage_of_val)])
+        dict_users_test[i] = dict_users_test[i][int(num_test_pc*percentage_of_val):]
+    
+    # Save data
+    file_name_train = 'src/data/'  + str(dataset_name) + "/train.p"
+    with open(file_name_train, 'wb') as fp:
+        pickle.dump(dict_users_train, fp)
+    
+    file_name_test = 'src/data/'  + str(dataset_name) + "/test.p"
+    with open(file_name_test, 'wb') as fp:
+        pickle.dump(dict_users_test, fp, protocol=pickle.HIGHEST_PROTOCOL)
+    
+    file_name_val = 'src/data/'  + str(dataset_name) + "/val.p"
+    with open(file_name_val, 'wb') as fp:
+        pickle.dump(dict_users_val, fp, protocol=pickle.HIGHEST_PROTOCOL)
+
+    return dict_users_train, dict_users_test,dict_users_val
 
 
 def noniid_label(dataset_name, train_dataset, test_dataset, num_users, n_class, nsamples_pc, split_test = False):

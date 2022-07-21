@@ -11,7 +11,7 @@ from ..pruning.unstructured import *
 
 class Client_Sub_Un(object):
     def __init__(self, name, model, local_bs, local_ep, lr, momentum, device, mask, pruning_target, 
-                 train_ds=None, train_idxs=None, test_ds = None, test_idxs = None):
+                 train_ds=None, train_idxs=None, test_ds = None, test_idxs = None,val_ds=None, val_idxs=None):
         
         self.name = name 
         self.net = model
@@ -23,6 +23,7 @@ class Client_Sub_Un(object):
         self.loss_func = nn.CrossEntropyLoss()
         self.ldr_train = DataLoader(DatasetSplit(train_ds, train_idxs), batch_size=self.local_bs, shuffle=True)
         self.ldr_test = DataLoader(DatasetSplit(test_ds, test_idxs), batch_size=200)
+        self.ldr_val = DataLoader(DatasetSplit(val_ds, val_idxs), batch_size=200)
         self.mask = mask 
         self.pruning_target = pruning_target
         self.acc_best = 0 
@@ -82,7 +83,8 @@ class Client_Sub_Un(object):
         state_dict = copy.deepcopy(self.net.state_dict())
         final_mask = copy.deepcopy(self.mask)
         
-        if dist > dist_thresh and self.pruned < self.pruning_target: 
+        _,val_acc = self.eval_val()
+        if dist > dist_thresh and self.pruned < self.pruning_target and val_acc > acc_thresh: 
             if (self.pruning_target - self.pruned < percent): 
                 print(f'..IMPOSING PRUNING To Reach Target PRUNING..')
                 #print(f'user prune: {user_pruned}')
@@ -160,4 +162,20 @@ class Client_Sub_Un(object):
                 correct += pred.eq(target.data.view_as(pred)).long().cpu().sum()
         train_loss /= len(self.ldr_train.dataset)
         accuracy = 100. * correct / len(self.ldr_train.dataset)
+        return train_loss, accuracy
+
+    def eval_val(self):
+        self.net.to(self.device)
+        self.net.eval()
+        train_loss = 0
+        correct = 0
+        with torch.no_grad():
+            for data, target in self.ldr_val:
+                data, target = data.to(self.device), target.to(self.device)
+                output = self.net(data)
+                train_loss += F.cross_entropy(output, target, reduction='sum').item()  # sum up batch loss
+                pred = output.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
+                correct += pred.eq(target.data.view_as(pred)).long().cpu().sum()
+        train_loss /= len(self.ldr_val.dataset)
+        accuracy = 100. * correct / len(self.ldr_val.dataset)
         return train_loss, accuracy

@@ -33,6 +33,7 @@ def args_parser():
     parser.add_argument('--dataset', type=str, default='cifar10', 
                         help="name of dataset: mnist, cifar10, cifar100")
     parser.add_argument('--noniid', action='store_true', help='whether i.i.d or not')
+    parser.add_argument('--load_data', action='store_true', help='whether load existing data or not')
     parser.add_argument('--shard', action='store_true', help='whether non-i.i.d based on shard or not')
     parser.add_argument('--label', action='store_true', help='whether non-i.i.d based on label or not')
     parser.add_argument('--split_test', action='store_true', 
