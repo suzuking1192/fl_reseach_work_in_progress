@@ -184,6 +184,10 @@ elif args.model == 'lenet5' and args.dataset == 'mnist':
 if args.load_initial:
     initial_state_dict = torch.load(args.load_initial)
     net_glob.load_state_dict(initial_state_dict)
+else:
+    # save initial weights
+    file_path = "src/data/weights/" + str("seed_") + str(args.seed) + ".pt"
+    torch.save(net_glob,file_path)
 
 initial_state_dict = copy.deepcopy(net_glob.state_dict())
 server_state_dict = copy.deepcopy(net_glob.state_dict())
