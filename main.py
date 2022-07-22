@@ -234,6 +234,10 @@ ckp_avg_pruning = []
 ckp_avg_best_tacc_before = []
 ckp_avg_best_tacc_after = []
 
+# prepare columns to save results
+csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","lr","momentum","warmup_epoch","model","ks","in_ch","dataset","nclass","nsample_pc","noniid","pruning_percent","pruning_target","dist_thresh_fc","acc_thresh","weight-decay","seed","algorithm","avg_final_tacc","personalized_parameters_percentage","corr_label_network_similarity"]
+
+
 for iteration in range(args.rounds):
         
     m = max(int(args.frac * args.num_users), 1)
@@ -363,3 +367,17 @@ train_acc = sum(train_acc) / len(train_acc)
 
 print(f'Train Loss: {train_loss}, Test_loss: {test_loss}')
 print(f'Train Acc: {train_acc}, Test Acc: {test_acc}')
+
+
+# save final masks and weights
+for idx in range(args.num_users):
+    final_mask = clients[idx].get_mask()
+    final_weights = clients[idx].get_state_dict()
+
+    file_name_mask = "src/data/masks/" + str(args.algorithm) +"_"+str(args.model) + "_" + str(args.dataset) + "_" + str(args.seed) + "_client_id_" + str(idx) + ".pickle"
+    with open(file_name_mask, 'wb') as fp:
+        pickle.dump(final_mask, fp)
+
+    file_name_weights = "src/data/weights/" + str(args.algorithm) +"_"+str(args.model) + "_" + str(args.dataset) + "_" + str(args.seed) + "_client_id_" + str(idx) + ".pickle"
+    with open(file_name_weights, 'wb') as fp:
+        pickle.dump(final_weights, fp)
