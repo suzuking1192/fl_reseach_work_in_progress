@@ -29,6 +29,7 @@ def args_parser():
     parser.add_argument('--ks', type=int, default=5, help='kernel size to use for convolutions')
     parser.add_argument('--in_ch', type=int, default=3, help='input channels of the first conv layer')
     parser.add_argument('--algorithm', type=str, default='sub_fedavg', help='model name')
+    parser.add_argument('--n_conv_layer', type=int, default=2, help='number of conv layers')
 
     # dataset partitioning arguments
     parser.add_argument('--dataset', type=str, default='cifar10', 

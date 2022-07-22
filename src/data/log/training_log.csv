@@ -1,0 +1,4 @@
+round,num_users,frac,local_ep,local_bs,bs,lr,momentum,warmup_epoch,model,ks,in_ch,dataset,nclass,nsample_pc,noniid,pruning_percent,pruning_target,dist_thresh_fc,acc_thresh,seed,algorithm,avg_final_tacc,personalized_parameters_percentage,corr_label_network_similarity
+0,100,0.1,5,10,128,0.01,0.5,0,lenet5,5,3,cifar10,2,20,True,10.0,30,0.0001,50,1,sub_fedavg,tensor(63.6063),0,0,2022-07-22
+0,100,0.1,5,10,128,0.01,0.5,0,lenet5,5,3,cifar10,2,20,True,10.0,30,0.0001,50,1,sub_fedavg,tensor(53.0312),0,0,2022-07-22
+0,100,0.1,5,10,128,0.01,0.5,0,lenet5,5,3,cifar10,2,20,True,10.0,30,0.0001,50,1,sub_fedavg,tensor(54.1250),0,0,2022-07-22
