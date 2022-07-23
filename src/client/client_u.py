@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 
 from ..data.data import DatasetSplit 
 from ..pruning.unstructured import *
+from ..ours.our_algorithm_utils import *
 
 class Client_Sub_Un(object):
     def __init__(self, name, model, local_bs, local_ep, lr, momentum, device, mask, pruning_target, 
@@ -30,6 +31,7 @@ class Client_Sub_Un(object):
         self.count = 0 
         self.pruned = 0 
         self.save_best = True 
+        self.fake_net = copy.deepcopy(model) # For local training model to calculate weight divergence
         
     def train(self, percent, dist_thresh, acc_thresh, is_print = False):
         self.net.to(self.device)
@@ -116,9 +118,49 @@ class Client_Sub_Un(object):
         self.pruned, _ = print_pruning(copy.deepcopy(self.net), is_print)
         
         return sum(epoch_loss) / len(epoch_loss)
+
+    def fake_train(self):
+        self.fake_net.to(self.device)
+        self.fake_net.train()
+        
+        optimizer = torch.optim.SGD(self.fake_net.parameters(), lr=self.lr, momentum=self.momentum)
+        
+        for iteration in range(self.local_ep):
+            
+            for batch_idx, (images, labels) in enumerate(self.ldr_train):
+                images, labels = images.to(self.device), labels.to(self.device)
+                self.fake_net.zero_grad()
+                optimizer.zero_grad()
+                log_probs = self.fake_net(images)
+                loss = self.loss_func(log_probs, labels)
+                loss.backward()
+                        
+                optimizer.step()
+
+    def local_train(self):
+        self.net.to(self.device)
+        self.net.train()
+        
+        optimizer = torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=self.momentum)
+        
+        for iteration in range(self.local_ep):
+            
+            for batch_idx, (images, labels) in enumerate(self.ldr_train):
+                images, labels = images.to(self.device), labels.to(self.device)
+                self.net.zero_grad()
+                optimizer.zero_grad()
+                log_probs = self.net(images)
+                loss = self.loss_func(log_probs, labels)
+                loss.backward()
+                        
+                optimizer.step()
+
+
     
     def get_state_dict(self):
         return self.net.state_dict()
+    def get_fake_state_dict(self):
+        return self.fake_net.state_dict()
     def get_mask(self):
         return self.mask 
     def get_best_acc(self):
@@ -131,6 +173,14 @@ class Client_Sub_Un(object):
         return self.net
     def set_state_dict(self, state_dict):
         self.net.load_state_dict(state_dict)
+    def set_mask(self,mask):
+        self.mask = mask
+    def set_pruned(self,pruned):
+        self.pruned = pruned
+
+    def update_weights(self):
+        new_dict = real_prune(copy.deepcopy(self.net), copy.deepcopy(self.mask))
+        self.net.load_state_dict(new_dict)
 
     def eval_test(self):
         self.net.to(self.device)
@@ -179,3 +229,37 @@ class Client_Sub_Un(object):
         train_loss /= len(self.ldr_val.dataset)
         accuracy = 100. * correct / len(self.ldr_val.dataset)
         return train_loss, accuracy
+
+
+    def new_algorithm_client_update(self,iteration,delta_r,alpha,T_end,mask_list,selected_idx_list,n_conv_layer,acc_thresh):
+
+        def cosine_annealing(alpha,iteration,T_end):
+            return alpha / 2 * (1 + np.cos((iteration * np.pi) / T_end))
+
+        if (self.pruned >= self.pruning_target) and(iteration%delta_r == 0):
+                mask_readjustment_rate = cosine_annealing(alpha,iteration,T_end)
+                
+                # Regrowth based on affinity matrix
+                self.mask = regrowth_based_on_affinity_c_idxs(self.mask,mask_list,selected_idx_list,mask_readjustment_rate**(1/2),n_conv_layer)
+
+                # Regrowth randomly
+                self.mask,self.pruned,next_prune_rate = model_growing(self.mask,mask_readjustment_rate**(1/2),n_conv_layer)
+
+        new_dict = real_prune(copy.deepcopy(self.net), copy.deepcopy(self.mask))
+        self.net.load_state_dict(new_dict)
+        self.local_train()
+        _,val_acc = self.eval_val()
+        loss,_ = self.eval_test()
+
+        prune = False
+        if (val_acc > acc_thresh) and (self.pruned < self.pruning_target):
+            prune = True
+
+        weights_list = []
+        for tensor in self.get_state_dict().items():
+            
+            weights_list.append(tensor[1])
+        
+
+        return loss, weights_list,prune
+

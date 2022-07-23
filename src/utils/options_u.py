@@ -31,6 +31,12 @@ def args_parser():
     parser.add_argument('--algorithm', type=str, default='sub_fedavg', help='model name')
     parser.add_argument('--n_conv_layer', type=int, default=2, help='number of conv layers')
 
+    # algorithm arguments
+    parser.add_argument('--parameter_to_multiply_avg', type=int, default=0.8, help='parameter_to_multiply_avg')
+    parser.add_argument('--delta_r', type=int, default=20, help='frequency of sparse training')
+    parser.add_argument('--alpha', type=int, default=0.5, help='initial value of pruning')
+    parser.add_argument('--lambda_value', type=int, default=1, help='weight of standard deviation in multi pruning')
+
     # dataset partitioning arguments
     parser.add_argument('--dataset', type=str, default='cifar10', 
                         help="name of dataset: mnist, cifar10, cifar100")
