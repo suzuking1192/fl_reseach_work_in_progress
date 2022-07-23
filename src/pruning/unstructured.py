@@ -178,6 +178,7 @@ def calculate_avg_10_percent_personalized_weights_each_layer(mask_list,n_conv_la
                                         
                                         personalized_num += 1
 
+            
 
             personalized_percentage_list[l].append(personalized_num/total_unpruned_weights_num)
     
@@ -256,3 +257,7 @@ def calculate_correlation_between_label_similarity_and_network_similarity(users_
 
     print("correlation between label similarity and network similarity = ",corr)
     return corr
+
+
+def fedspa_mask_initialization(clients):
+    pass

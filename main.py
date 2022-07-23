@@ -19,6 +19,7 @@ from src.pruning import *
 from src.sub_fedavg import * 
 from src.client import * 
 from src.utils.options_u import args_parser 
+from src.ours.our_algorithm_utils import *
 
 today = date.today()
 
@@ -211,6 +212,10 @@ for idx in range(args.num_users):
                test_dataset, user_groups_test[idx],
                test_dataset, user_groups_val[idx])) 
     
+
+if args.algorithm == "fedspa":
+    fedspa_mask_initialization(clients)
+
 ## 
 loss_train = []
 
@@ -241,6 +246,9 @@ ckp_avg_best_tacc_after = []
 # prepare columns to save results
 csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","lr","momentum","warmup_epoch","model","ks","in_ch","dataset","nclass","nsample_pc","noniid","pruning_percent","pruning_target","dist_thresh_fc","acc_thresh","weight-decay","seed","algorithm","avg_final_tacc","personalized_parameters_percentage","corr_label_network_similarity"]
 
+# Create affinity matrix and select related clients
+if args.algorithm == "ours":
+    selected_idx_mat = create_selected_idx_mat(clients,args.n_conv_layer,args.parameter_to_multiply_avg) 
 
 for iteration in range(args.rounds):
         
@@ -250,6 +258,9 @@ for iteration in range(args.rounds):
     if args.is_print:
         print(f'###### ROUND {iteration+1} ######')
         print(f'Clients {idxs_users}')
+
+    if args.algorithm == "ours":
+        updated_weights_list_with_pruning_status = []
     
     for idx in idxs_users:
                     
@@ -263,9 +274,18 @@ for iteration in range(args.rounds):
             
         init_local_tacc.append(acc)
         init_local_tloss.append(loss)
-            
-        loss = clients[idx].train(args.pruning_percent, args.dist_thresh, args.acc_thresh, is_print=False)
-                        
+        
+        if args.algorithm == "sub_fedavg":
+            loss = clients[idx].train(args.pruning_percent, args.dist_thresh, args.acc_thresh, is_print=False)
+        elif args.algorithm == "ours":
+            mask_list = []
+            for i in range(args.num_users):
+                mask_list.append(copy.deepcopy(clients[i].get_mask()))
+            loss,weights_list,prune = clients[idx].new_algorithm_client_update(iteration,args.delta_r,args.alpha,args.rounds,mask_list,selected_idx_mat[idx],args.n_conv_layer,args.acc_thresh)
+            updated_weights_list_with_pruning_status.append((weights_list,prune))
+        elif args.algorithm == "fedspa":
+            loss = clients[idx].fedspa_client_update()
+                    
         masks.append(copy.deepcopy(clients[idx].get_mask()))     
         w_locals.append(copy.deepcopy(clients[idx].get_state_dict()))
         loss_locals.append(copy.deepcopy(loss))
@@ -276,9 +296,31 @@ for iteration in range(args.rounds):
             clients_best_acc[idx] = acc
   
         final_local_tacc.append(acc)
-        final_local_tloss.append(loss)           
+        final_local_tloss.append(loss)
+
+    if args.algorithm == "ours":
+        mask_list = []
+        pruned_rate_list = []
+        for idx in idxs_users:
+            mask_list.append(copy.deepcopy(clients[idx].get_mask()))
+            pruned_rate_list.append(copy.deepcopy(clients[idx].get_pruning()))
+
+        mask_list,pruned_rate_list = global_multi_criteria_pruning(updated_weights_list_with_pruning_status,mask_list,args.lambda_value,args.pruning_percent,args.n_conv_layer,pruned_rate_list,args.pruning_target)  
+        counter = 0
+        for idx in idxs_users:
+            clients[idx].set_mask(mask_list[counter])
+            masks[counter] = copy.deepcopy(mask_list[counter])
+            clients[idx].set_pruned(pruned_rate_list[counter])
+            clients[idx].update_weights()
+            w_locals[counter] = copy.deepcopy(clients[idx].get_state_dict())  
+
+            counter += 1
+                 
         
     server_state_dict = Sub_FedAVG_U(server_state_dict, w_locals, masks)
+
+    if args.algorithm == "ours":
+        server_state_dict = fill_zero_weights(server_state_dict,args.n_conv_layer)
     
     # print loss
     loss_avg = sum(loss_locals) / len(loss_locals)
@@ -330,11 +372,11 @@ for iteration in range(args.rounds):
         mask_list = []
         for k in range(args.num_users):
             mask_list.append(clients[k].get_mask())
-        #personalized_parameters_ratio_list = calculate_avg_10_percent_personalized_weights_each_layer(mask_list,args.n_conv_layer)
-        personalized_parameters_ratio_list = 0
+        personalized_parameters_ratio_list = calculate_avg_10_percent_personalized_weights_each_layer(mask_list,args.n_conv_layer)
+        
         # Calculate correlation between label and network similarity
-        #corr_label_and_network_similarity = calculate_correlation_between_label_similarity_and_network_similarity(users_train_labels,mask_list,args.n_conv_layer)
-        corr_label_and_network_similarity = 0
+        corr_label_and_network_similarity = calculate_correlation_between_label_similarity_and_network_similarity(users_train_labels,mask_list,args.n_conv_layer)
+        
         csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","lr","momentum","warmup_epoch","model","ks","in_ch","dataset","nclass","nsample_pc","noniid","pruning_percent","pruning_target","dist_thresh_fc","acc_thresh","seed","algorithm","avg_final_tacc","personalized_parameters_percentage","corr_label_network_similarity","date"]
         csv_rows_each_round = [[str(iteration),str(args.num_users),str(args.frac),str(args.local_ep),str(args.local_bs),str(args.bs),str(args.lr),str(args.momentum),str(args.warmup_epoch),str(args.model),str(args.ks),str(args.in_ch),str(args.dataset),str(args.nclass),str(args.nsample_pc),str(args.noniid),str(args.pruning_percent),str(args.pruning_target),str(args.dist_thresh),str(args.acc_thresh),str(args.seed),str(args.algorithm),str(avg_final_tacc),str(personalized_parameters_ratio_list),str(corr_label_and_network_similarity),today]]
         with open('src/data/log/training_log.csv', 'a') as f:
@@ -397,11 +439,11 @@ print(f'Train Acc: {train_acc}, Test Acc: {test_acc}')
 mask_list = []
 for k in range(args.num_users):
     mask_list.append(clients[k].get_mask())
-#personalized_parameters_ratio_list = calculate_avg_10_percent_personalized_weights_each_layer(mask_list,args.n_conv_layer)
-personalized_parameters_ratio_list = 0
+personalized_parameters_ratio_list = calculate_avg_10_percent_personalized_weights_each_layer(mask_list,args.n_conv_layer)
+
 # Calculate correlation between label and network similarity
-#corr_label_and_network_similarity = calculate_correlation_between_label_similarity_and_network_similarity(users_train_labels,mask_list,args.n_conv_layer)
-corr_label_and_network_similarity = 0 
+corr_label_and_network_similarity = calculate_correlation_between_label_similarity_and_network_similarity(users_train_labels,mask_list,args.n_conv_layer)
+
 csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","lr","momentum","warmup_epoch","model","ks","in_ch","dataset","nclass","nsample_pc","noniid","pruning_percent","pruning_target","dist_thresh_fc","acc_thresh","seed","algorithm","avg_final_tacc","personalized_parameters_percentage","corr_label_network_similarity","date"]
 csv_rows_each_round = [[args.rounds,args.num_users,args.frac,args.local_ep,args.local_bs,args.bs,args.lr,args.momentum,args.warmup_epoch,args.model,args.ks,args.in_ch,args.dataset,args.nclass,args.nsample_pc,args.noniid,args.pruning_percent,args.pruning_target,args.dist_thresh,args.acc_thresh,args.seed,args.algorithm,test_acc,str(personalized_parameters_ratio_list),corr_label_and_network_similarity,today]]
 with open('src/data/log/final_results.csv', 'a') as f:
