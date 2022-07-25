@@ -191,14 +191,21 @@ elif args.model == 'lenet5' and args.dataset == 'mnist':
     net_glob = LeNet5Mnist().to(args.device)
     net_glob.apply(weight_init)
     users_model = [LeNet5Mnist().to(args.device).apply(weight_init) for _ in range(args.num_users)]
+elif args.model == 'fl' and args.dataset == 'cifar10':
+    net_glob = FLCifar10().to(args.device)
+    net_glob.apply(weight_init)
+    users_model = [FLCifar10().to(args.device).apply(weight_init) for _ in range(args.num_users)]
+
 
 if args.load_initial:
-    initial_state_dict = torch.load(args.load_initial)
+    file_path = "src/data/weights/" + str(args.model)  + str("_seed_") + str(args.seed) + ".pt"
+    initial_state_dict = torch.load(file_path)
+
     net_glob.load_state_dict(initial_state_dict)
 else:
     # save initial weights
-    file_path = "src/data/weights/" + str("seed_") + str(args.seed) + ".pt"
-    torch.save(net_glob,file_path)
+    file_path = "src/data/weights/" + str(args.model)  + str("_seed_") + str(args.seed) + ".pt"
+    torch.save(net_glob.state_dict(),file_path)
 
 initial_state_dict = copy.deepcopy(net_glob.state_dict())
 server_state_dict = copy.deepcopy(net_glob.state_dict())

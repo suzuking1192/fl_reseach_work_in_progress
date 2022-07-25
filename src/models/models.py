@@ -198,6 +198,18 @@ class LeNet5Cifar10(nn.Module):
         x = self.fc3(x)
         return x
     
+class FLCifar10(nn.Module):
+    def __init__(self):
+        super(FLCifar10, self).__init__()
+        self.fc1 = nn.Linear(32*32*3, 32)
+        self.fc2 = nn.Linear(32, 10)
+
+    def forward(self, x):
+        x = x.view(-1, 32 * 32 * 3)
+        x = F.relu(self.fc1(x))
+        x = F.softmax(self.fc2(x))
+        return x
+
 class LeNet5Cifar100(nn.Module):
     def __init__(self):
         super(LeNet5Cifar100, self).__init__()
@@ -262,4 +274,3 @@ def weight_init(m):
         init.xavier_normal_(m.weight.data)
         init.normal_(m.bias.data)
     return 
-
