@@ -63,7 +63,7 @@ def args_parser():
     parser.add_argument('--is_print', action='store_true', help='verbose print')
     parser.add_argument('--print_freq', type=int, default=100, help="printing frequency during training rounds")
     parser.add_argument('--seed', type=int, default=1, help='random seed (default: 1)')
-    parser.add_argument('--load_initial', type=str, default='', help='define initial model path')
+    parser.add_argument('--load_initial', action='store_true', help='define initial model path')
     #parser.add_argument('--results_save', type=str, default='/', help='define fed results save folder')
     #parser.add_argument('--start_saving', type=int, default=0, help='when to start saving models')
 
