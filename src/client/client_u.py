@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from ..data.data import DatasetSplit 
 from ..pruning.unstructured import *
 from ..ours.our_algorithm_utils import *
+from ..fedspa.rigil import *
 
 class Client_Sub_Un(object):
     def __init__(self, name, model, local_bs, local_ep, lr, momentum, device, mask, pruning_target, 
@@ -236,14 +237,18 @@ class Client_Sub_Un(object):
         def cosine_annealing(alpha,iteration,T_end):
             return alpha / 2 * (1 + np.cos((iteration * np.pi) / T_end))
 
-        if (self.pruned >= self.pruning_target) and(iteration%delta_r == 0):
-                mask_readjustment_rate = cosine_annealing(alpha,iteration,T_end)
-                
-                # Regrowth based on affinity matrix
-                self.mask = regrowth_based_on_affinity_c_idxs(self.mask,mask_list,selected_idx_list,mask_readjustment_rate**(1/2),n_conv_layer)
+        self.pruned, _ = print_pruning(copy.deepcopy(self.net), is_print = True)
 
-                # Regrowth randomly
-                self.mask,self.pruned,next_prune_rate = model_growing(self.mask,mask_readjustment_rate**(1/2),n_conv_layer)
+        if (self.pruned >= self.pruning_target-1) and(iteration%delta_r == 0):
+                mask_readjustment_rate = cosine_annealing(alpha,iteration,T_end)
+                print("mask_readjustment_rate = ",mask_readjustment_rate)
+                if mask_readjustment_rate != 0:
+                    # Regrowth based on affinity matrix
+                    self.mask = regrowth_based_on_affinity_c_idxs(self.mask,mask_list,selected_idx_list,mask_readjustment_rate/2,n_conv_layer)
+
+                    # Regrowth randomly
+                    next_mask_adjustment_rate = (1+mask_readjustment_rate)/(1+mask_readjustment_rate/2) - 1
+                    self.mask,self.pruned,next_prune_rate = model_growing(self.mask,next_mask_adjustment_rate,n_conv_layer)
 
         new_dict = real_prune(copy.deepcopy(self.net), copy.deepcopy(self.mask))
         self.net.load_state_dict(new_dict)
@@ -252,7 +257,7 @@ class Client_Sub_Un(object):
         loss,_ = self.eval_test()
 
         prune = False
-        if (val_acc > acc_thresh) and (self.pruned < self.pruning_target):
+        if (val_acc > acc_thresh) and (self.pruned < self.pruning_target-1):
             prune = True
 
         weights_list = []
@@ -263,3 +268,54 @@ class Client_Sub_Un(object):
 
         return loss, weights_list,prune
 
+    def fedspa_client_update(self,pruner_state_dict,pruning_target,T_end,alpha,pruner=None, is_print = False):
+        optimizer = torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=self.momentum)
+        if pruner == None:
+            pruner = RigLScheduler(self.net,
+                                    optimizer,
+                                    dense_allocation=1-pruning_target/100,
+                                    sparsity_distribution="ERK",
+                                    T_end=T_end,
+                                    delta=self.local_ep,
+                                    alpha=alpha,
+                                    state_dict=pruner_state_dict)
+
+        self.net.to(self.device)
+        self.net.train()
+        
+        optimizer = torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=self.momentum)
+        
+        w_0 = self.get_state_dict()
+        # print("w_0[fc1.weight] = ",w_0["fc1.weight"])
+        for iteration in range(self.local_ep):
+            
+            for batch_idx, (images, labels) in enumerate(self.ldr_train):
+                images, labels = images.to(self.device), labels.to(self.device)
+                self.net.zero_grad()
+                optimizer.zero_grad()
+                log_probs = self.net(images)
+                loss = self.loss_func(log_probs, labels)
+                loss.backward()
+
+                if pruner():
+                        
+                    optimizer.step()
+
+        self.set_mask(pruner.get_mask())
+        # print("updated_mask = ",pruner.get_mask()[0][0])
+
+        w_1 = self.get_state_dict()
+        # print("w_1[fc1.weight] =",w_1["fc1.weight"])
+        U_t = copy.deepcopy(w_1)
+
+        for key,tensor in U_t.items():
+            U_t[key] = tensor - w_0[key]
+        loss,_ = self.eval_test()
+        self.pruned, _ = print_pruning(copy.deepcopy(self.net), is_print)
+        pruner_state_dict = pruner.state_dict()
+        
+        return loss,U_t,pruner_state_dict,pruner
+
+
+
+                

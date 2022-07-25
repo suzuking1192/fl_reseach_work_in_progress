@@ -20,11 +20,17 @@ from src.sub_fedavg import *
 from src.client import * 
 from src.utils.options_u import args_parser 
 from src.ours.our_algorithm_utils import *
+from src.fedspa.utils import *
+from src.fedspa.rigil import *
 
 today = date.today()
 
 
+
 args = args_parser()
+
+if args.algorithm == "fedspa":
+    torch.set_default_tensor_type('torch.DoubleTensor')
 
 args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() else 'cpu')
 
@@ -213,8 +219,39 @@ for idx in range(args.num_users):
                test_dataset, user_groups_val[idx])) 
     
 
+
 if args.algorithm == "fedspa":
-    fedspa_mask_initialization(clients)
+    sparsities_list = fedspa_mask_initialization(clients,args.pruning_target)
+    S = []
+    for item in sparsities_list[0].items():
+        S.append(item[1])
+
+    pruner_state_dict_list = []
+    pruner_list = []
+    for idx in range(args.num_users):
+
+        W, _linear_layers_mask = get_W(clients[idx].get_net(), return_linear_layers_mask=True)
+        N = [torch.numel(w) for w in W]
+        obj = {
+            'dense_allocation': 1-args.pruning_target/100,
+            'S': S,
+            'N': N,
+            'hyperparams': {
+                'delta_T': args.local_ep,
+                'alpha': args.alpha,
+                'T_end': args.rounds,
+                'ignore_linear_layers': False,
+                'static_topo': False,
+                'sparsity_distribution': "ERK",
+                'grad_accumulation_n': 1,
+            },
+            'step': 0,
+            'rigl_steps': 0,
+            'backward_masks': clients[idx].get_mask(),
+            '_linear_layers_mask': clients[idx].get_mask()[args.n_conv_layer:],
+        }
+        pruner_state_dict_list.append(obj)
+        pruner_list.append(None)
 
 ## 
 loss_train = []
@@ -249,6 +286,7 @@ csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","
 # Create affinity matrix and select related clients
 if args.algorithm == "ours":
     selected_idx_mat = create_selected_idx_mat(clients,args.n_conv_layer,args.parameter_to_multiply_avg) 
+    print("selected_idx_mat = ",selected_idx_mat)
 
 for iteration in range(args.rounds):
         
@@ -261,6 +299,9 @@ for iteration in range(args.rounds):
 
     if args.algorithm == "ours":
         updated_weights_list_with_pruning_status = []
+    
+    if args.algorithm == "fedspa":
+        U_t_list = []
     
     for idx in idxs_users:
                     
@@ -284,7 +325,10 @@ for iteration in range(args.rounds):
             loss,weights_list,prune = clients[idx].new_algorithm_client_update(iteration,args.delta_r,args.alpha,args.rounds,mask_list,selected_idx_mat[idx],args.n_conv_layer,args.acc_thresh)
             updated_weights_list_with_pruning_status.append((weights_list,prune))
         elif args.algorithm == "fedspa":
-            loss = clients[idx].fedspa_client_update()
+            loss,U_t,pruner_state_dict,pruner = clients[idx].fedspa_client_update(pruner_state_dict_list[idx],args.pruning_target,args.rounds,args.alpha,pruner_list[idx])
+            U_t_list.append(U_t)
+            pruner_state_dict_list[idx] = copy.deepcopy(pruner_state_dict)
+            pruner_list[idx] = pruner
                     
         masks.append(copy.deepcopy(clients[idx].get_mask()))     
         w_locals.append(copy.deepcopy(clients[idx].get_state_dict()))
@@ -316,8 +360,10 @@ for iteration in range(args.rounds):
 
             counter += 1
                  
-        
-    server_state_dict = Sub_FedAVG_U(server_state_dict, w_locals, masks)
+    if args.algorithm != "fedspa":
+        server_state_dict = Sub_FedAVG_U(server_state_dict, w_locals, masks)
+    else:
+        server_state_dict = fedspa_global_model_update(server_state_dict,U_t_list)
 
     if args.algorithm == "ours":
         server_state_dict = fill_zero_weights(server_state_dict,args.n_conv_layer)
@@ -331,7 +377,7 @@ for iteration in range(args.rounds):
     
     if args.is_print:    
         print('## END OF ROUND ##')
-        template = 'Average Train loss {:.3f}'
+        template = 'The Number Of Round  {:.3f} , Average Train loss {:.3f}'
         print(template.format(iteration+1, loss_avg))
 
         template = "AVG Init Test Loss: {:.3f}, AVG Init Test Acc: {:.3f}"
@@ -370,15 +416,17 @@ for iteration in range(args.rounds):
 
         # Calculate personalized parameters ratio
         mask_list = []
+        
         for k in range(args.num_users):
             mask_list.append(clients[k].get_mask())
+            # print("sample mask",clients[k].get_mask()[0][0])
         personalized_parameters_ratio_list = calculate_avg_10_percent_personalized_weights_each_layer(mask_list,args.n_conv_layer)
         
         # Calculate correlation between label and network similarity
         corr_label_and_network_similarity = calculate_correlation_between_label_similarity_and_network_similarity(users_train_labels,mask_list,args.n_conv_layer)
         
         csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","lr","momentum","warmup_epoch","model","ks","in_ch","dataset","nclass","nsample_pc","noniid","pruning_percent","pruning_target","dist_thresh_fc","acc_thresh","seed","algorithm","avg_final_tacc","personalized_parameters_percentage","corr_label_network_similarity","date"]
-        csv_rows_each_round = [[str(iteration),str(args.num_users),str(args.frac),str(args.local_ep),str(args.local_bs),str(args.bs),str(args.lr),str(args.momentum),str(args.warmup_epoch),str(args.model),str(args.ks),str(args.in_ch),str(args.dataset),str(args.nclass),str(args.nsample_pc),str(args.noniid),str(args.pruning_percent),str(args.pruning_target),str(args.dist_thresh),str(args.acc_thresh),str(args.seed),str(args.algorithm),str(avg_final_tacc),str(personalized_parameters_ratio_list),str(corr_label_and_network_similarity),today]]
+        csv_rows_each_round = [[str(iteration),str(args.num_users),str(args.frac),str(args.local_ep),str(args.local_bs),str(args.bs),str(args.lr),str(args.momentum),str(args.warmup_epoch),str(args.model),str(args.ks),str(args.in_ch),str(args.dataset),str(args.nclass),str(args.nsample_pc),str(args.noniid),str(args.pruning_percent),str(args.pruning_target),str(args.dist_thresh),str(args.acc_thresh),str(args.seed),str(args.algorithm),np.mean(current_acc),str(personalized_parameters_ratio_list),str(corr_label_and_network_similarity),today]]
         with open('src/data/log/training_log.csv', 'a') as f:
       
             # using csv.writer method from CSV package

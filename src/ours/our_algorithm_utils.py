@@ -279,7 +279,7 @@ def model_growing(mask,mask_adjustment_rate,n_conv_layer):
 
     next_prune_rate = len(idx_list)/(total_count - counter + len(idx_list))
 
-    return updated_mask,updated_pruned_rate,next_prune_rate
+    return updated_mask,updated_pruned_rate*100,next_prune_rate
 
 
 def global_multi_criteria_pruning(weights_list_with_pruning_status,mask_list,lambda_value,pruned_rate_each_round,n_conv_layer,pruned_rate_list,pruned_target):
@@ -449,7 +449,7 @@ def global_multi_criteria_pruning(weights_list_with_pruning_status,mask_list,lam
 
             pruning_percent = 1 -  (unpruned/num_weights) * (1-pruned_rate_each_round/100)
             if pruning_percent > pruned_target/100:
-                pruning_percent = pruned_target/100
+                pruning_percent = copy.deepcopy(pruned_target/100)
             # print("unpruned/num_weights",unpruned/num_weights)
             # print("pruning_percent =",pruning_percent)
 
@@ -468,7 +468,7 @@ def global_multi_criteria_pruning(weights_list_with_pruning_status,mask_list,lam
                     mask[k[0]][k[1]][k[2]][k[3]][k[4]] = 0
             
             updated_mask_list.append(mask)
-            updated_pruned_rate_list.append(pruning_percent)
+            updated_pruned_rate_list.append(pruning_percent*100)
             mask_list[c_id] = copy.deepcopy(mask)
 
             

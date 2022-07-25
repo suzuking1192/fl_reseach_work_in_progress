@@ -129,12 +129,15 @@ def calculate_avg_10_percent_personalized_weights_each_layer(mask_list,n_conv_la
     n_client = len(mask_list)
     n_layer = len(mask_list[0])
 
+
+
     personalized_percentage_list = []
 
     for l in range(n_layer):
         personalized_percentage_list.append([])
 
     for c_idx in range(n_client):
+        #print("sample mask",mask_list[c_idx][3][0])
         for l in range(n_layer):
             if l >= n_conv_layer:
                 input_size = len(mask_list[c_idx][l])
@@ -150,8 +153,9 @@ def calculate_avg_10_percent_personalized_weights_each_layer(mask_list,n_conv_la
                             
                             overlap_num = 0
                             for ref_c_idx in range(n_client):
-                                if mask_list[ref_c_idx][l][i][o] == 1:
-                                    overlap_num += 1
+                                if ref_c_idx != c_idx:
+                                    if mask_list[ref_c_idx][l][i][o] == 1:
+                                        overlap_num += 1
                             if overlap_num <= 0.1 *(n_client):
                                 
                                 personalized_num += 1
@@ -172,14 +176,15 @@ def calculate_avg_10_percent_personalized_weights_each_layer(mask_list,n_conv_la
                                     
                                     overlap_num = 0
                                     for ref_c_idx in range(n_client):
-                                        if mask_list[ref_c_idx][l][i][j][k][m] == 1:
-                                            overlap_num += 1
+                                        if ref_c_idx != c_idx:
+                                            if mask_list[ref_c_idx][l][i][j][k][m] == 1:
+                                                overlap_num += 1
                                     if overlap_num <= 0.1 *(n_client):
                                         
                                         personalized_num += 1
 
             
-
+            #print("total_unpruned_weights_num = ",total_unpruned_weights_num)
             personalized_percentage_list[l].append(personalized_num/total_unpruned_weights_num)
     
     personalized_parameters_rate_list = []
@@ -259,5 +264,3 @@ def calculate_correlation_between_label_similarity_and_network_similarity(users_
     return corr
 
 
-def fedspa_mask_initialization(clients):
-    pass

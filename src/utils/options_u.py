@@ -34,7 +34,7 @@ def args_parser():
     # algorithm arguments
     parser.add_argument('--parameter_to_multiply_avg', type=int, default=0.8, help='parameter_to_multiply_avg')
     parser.add_argument('--delta_r', type=int, default=20, help='frequency of sparse training')
-    parser.add_argument('--alpha', type=int, default=0.5, help='initial value of pruning')
+    parser.add_argument('--alpha', type=float, default=0.5, help='initial value of pruning')
     parser.add_argument('--lambda_value', type=int, default=1, help='weight of standard deviation in multi pruning')
 
     # dataset partitioning arguments
