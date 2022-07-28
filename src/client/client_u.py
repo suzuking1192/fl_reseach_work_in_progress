@@ -125,6 +125,9 @@ class Client_Sub_Un(object):
         self.fake_net.train()
         
         optimizer = torch.optim.SGD(self.fake_net.parameters(), lr=self.lr, momentum=self.momentum)
+
+        if self.lr >=0.1:
+            optimizer = torch.optim.SGD(self.fake_net.parameters(), lr=0.01, momentum=self.momentum)
         
         for iteration in range(self.local_ep):
             
@@ -144,8 +147,9 @@ class Client_Sub_Un(object):
         
         optimizer = torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=self.momentum)
         
+        epoch_loss = []
         for iteration in range(self.local_ep):
-            
+            batch_loss = []
             for batch_idx, (images, labels) in enumerate(self.ldr_train):
                 images, labels = images.to(self.device), labels.to(self.device)
                 self.net.zero_grad()
@@ -155,6 +159,11 @@ class Client_Sub_Un(object):
                 loss.backward()
                         
                 optimizer.step()
+            batch_loss.append(loss.item())
+                
+        epoch_loss.append(sum(batch_loss)/len(batch_loss))
+
+        return sum(epoch_loss) / len(epoch_loss)
 
 
     
@@ -178,6 +187,8 @@ class Client_Sub_Un(object):
         self.mask = mask
     def set_pruned(self,pruned):
         self.pruned = pruned
+    def lr_decay(self,decay):
+        self.lr = self.lr * decay
 
     def update_weights(self):
         new_dict = real_prune(copy.deepcopy(self.net), copy.deepcopy(self.mask))
@@ -232,14 +243,14 @@ class Client_Sub_Un(object):
         return train_loss, accuracy
 
 
-    def new_algorithm_client_update(self,iteration,delta_r,alpha,T_end,mask_list,selected_idx_list,n_conv_layer,acc_thresh):
+    def new_algorithm_client_update(self,iteration,delta_r,alpha,T_end,mask_list,selected_idx_list,n_conv_layer,acc_thresh,early_stop_sparse_tr):
 
         def cosine_annealing(alpha,iteration,T_end):
             return alpha / 2 * (1 + np.cos((iteration * np.pi) / T_end))
 
         self.pruned, _ = print_pruning(copy.deepcopy(self.net), is_print = True)
 
-        if (self.pruned >= self.pruning_target-1) and(iteration%delta_r == 0):
+        if (self.pruned >= self.pruning_target-1) and(iteration%delta_r == 0) and (early_stop_sparse_tr >= iteration):
                 mask_readjustment_rate = cosine_annealing(alpha,iteration,T_end)
                 print("mask_readjustment_rate = ",mask_readjustment_rate)
                 if mask_readjustment_rate != 0:
@@ -252,9 +263,9 @@ class Client_Sub_Un(object):
 
         new_dict = real_prune(copy.deepcopy(self.net), copy.deepcopy(self.mask))
         self.net.load_state_dict(new_dict)
-        self.local_train()
+        loss = self.local_train()
         _,val_acc = self.eval_val()
-        loss,_ = self.eval_test()
+        
 
         prune = False
         if (val_acc > acc_thresh) and (self.pruned < self.pruning_target-1):
@@ -287,8 +298,13 @@ class Client_Sub_Un(object):
         
         w_0 = self.get_state_dict()
         # print("w_0[fc1.weight] = ",w_0["fc1.weight"])
+
+        mask_list = []
+        mask_list.append(self.get_mask())
+
+        epoch_loss = []
         for iteration in range(self.local_ep):
-            
+            batch_loss = []
             for batch_idx, (images, labels) in enumerate(self.ldr_train):
                 images, labels = images.to(self.device), labels.to(self.device)
                 self.net.zero_grad()
@@ -301,6 +317,10 @@ class Client_Sub_Un(object):
                         
                     optimizer.step()
 
+            batch_loss.append(loss.item())
+                
+        epoch_loss.append(sum(batch_loss)/len(batch_loss))
+
         self.set_mask(pruner.get_mask())
         # print("updated_mask = ",pruner.get_mask()[0][0])
 
@@ -310,11 +330,16 @@ class Client_Sub_Un(object):
 
         for key,tensor in U_t.items():
             U_t[key] = tensor - w_0[key]
-        loss,_ = self.eval_test()
+        #loss,_ = self.eval_test()
         self.pruned, _ = print_pruning(copy.deepcopy(self.net), is_print)
         pruner_state_dict = pruner.state_dict()
+
+        # print("fedspa sparse training effect")
+        # mask_list.append(self.get_mask())
         
-        return loss,U_t,pruner_state_dict,pruner
+        # calculate_avg_10_percent_personalized_weights_each_layer(mask_list,n_conv_layer=2)
+        
+        return sum(epoch_loss) / len(epoch_loss),U_t,pruner_state_dict,pruner
 
 
 

@@ -6,6 +6,7 @@ import torch.distributed as dist
 
 import torch
 import torchvision
+import copy
 
 
 EXCLUDED_TYPES = (torch.nn.BatchNorm2d, )
@@ -320,7 +321,7 @@ class RigLScheduler:
         return True
 
     def get_mask(self):
-        return self.backward_masks
+        return self.updated_mask
 
 
     @torch.no_grad()
@@ -330,10 +331,12 @@ class RigLScheduler:
         # if distributed these values will be populated
         is_dist = dist.is_initialized()
         world_size = dist.get_world_size() if is_dist else None
-
+        self.updated_mask = []
         for l, w in enumerate(self.W):
             # if sparsity is 0%, skip
             if self.S[l] <= 0:
+                current_mask = torch.from_numpy(self.backward_masks[l])
+                self.updated_mask.append(current_mask.numpy().astype(int).tolist())
                 continue
 
             current_mask = torch.from_numpy(self.backward_masks[l])
@@ -400,6 +403,14 @@ class RigLScheduler:
             # update the mask
             current_mask.data = mask_combined
 
+            # if l == 0:
+            #     print("mask_combined =",mask_combined)
+
             self.reset_momentum()
             self.apply_mask_to_weights()
             self.apply_mask_to_gradients() 
+
+        # print("current_mask =",current_mask)
+            self.updated_mask.append(current_mask.numpy().astype(int).tolist())
+        
+
