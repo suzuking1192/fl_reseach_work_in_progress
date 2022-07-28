@@ -34,7 +34,11 @@ if args.algorithm == "fedspa":
 
 args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() else 'cpu')
 
-#torch.cuda.set_device(args.gpu) ## Setting cuda on GPU 
+try:
+    torch.cuda.set_device(args.gpu) ## Setting cuda on GPU 
+except:
+    print("no gpu")
+    pass
 ## Data partitioning section 
 
 if args.dataset == 'cifar10':
@@ -210,6 +214,8 @@ else:
 initial_state_dict = copy.deepcopy(net_glob.state_dict())
 server_state_dict = copy.deepcopy(net_glob.state_dict())
 
+
+
 for i in range(args.num_users):
     users_model[i].load_state_dict(initial_state_dict)
     
@@ -329,7 +335,7 @@ for iteration in range(args.rounds):
             mask_list = []
             for i in range(args.num_users):
                 mask_list.append(copy.deepcopy(clients[i].get_mask()))
-            loss,weights_list,prune = clients[idx].new_algorithm_client_update(iteration,args.delta_r,args.alpha,args.rounds,mask_list,selected_idx_mat[idx],args.n_conv_layer,args.acc_thresh)
+            loss,weights_list,prune = clients[idx].new_algorithm_client_update(iteration,args.delta_r,args.alpha,args.rounds,mask_list,selected_idx_mat[idx],args.n_conv_layer,args.acc_thresh,args.early_stop_sparse_tr)
             updated_weights_list_with_pruning_status.append((weights_list,prune))
         elif args.algorithm == "fedspa":
             loss,U_t,pruner_state_dict,pruner = clients[idx].fedspa_client_update(pruner_state_dict_list[idx],args.pruning_target,args.rounds,args.alpha,pruner_list[idx])
@@ -359,11 +365,12 @@ for iteration in range(args.rounds):
         mask_list,pruned_rate_list = global_multi_criteria_pruning(updated_weights_list_with_pruning_status,mask_list,args.lambda_value,args.pruning_percent,args.n_conv_layer,pruned_rate_list,args.pruning_target)  
         counter = 0
         for idx in idxs_users:
-            clients[idx].set_mask(mask_list[counter])
-            masks[counter] = copy.deepcopy(mask_list[counter])
-            clients[idx].set_pruned(pruned_rate_list[counter])
-            clients[idx].update_weights()
-            w_locals[counter] = copy.deepcopy(clients[idx].get_state_dict())  
+            if updated_weights_list_with_pruning_status[idx][1] == True:
+                clients[idx].set_mask(mask_list[counter])
+                masks[counter] = copy.deepcopy(mask_list[counter])
+                clients[idx].set_pruned(pruned_rate_list[counter])
+                clients[idx].update_weights()
+                w_locals[counter] = copy.deepcopy(clients[idx].get_state_dict())  
 
             counter += 1
                  
@@ -373,7 +380,7 @@ for iteration in range(args.rounds):
         server_state_dict = fedspa_global_model_update(server_state_dict,U_t_list)
 
     if args.algorithm == "ours":
-        server_state_dict = fill_zero_weights(server_state_dict,args.n_conv_layer)
+        server_state_dict = fill_zero_weights(server_state_dict,args.n_conv_layer,layer_wise=args.layer_wise_fill_weights)
     
     # print loss
     loss_avg = sum(loss_locals) / len(loss_locals)
@@ -440,6 +447,11 @@ for iteration in range(args.rounds):
             write = csv.writer(f)
             
             write.writerows(csv_rows_each_round)
+
+    # update learning rate
+    if args.lr_decay != 1:
+        for k in range(args.num_users):
+            clients[k].lr_decay(args.lr_decay)
 
         
     loss_train.append(loss_avg)

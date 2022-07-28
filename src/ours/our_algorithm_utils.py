@@ -476,7 +476,7 @@ def global_multi_criteria_pruning(weights_list_with_pruning_status,mask_list,lam
 
     return updated_mask_list,updated_pruned_rate_list
 
-def fill_zero_weights(state_dict,n_conv_layer):
+def fill_zero_weights(state_dict,n_conv_layer,lr = None,layer_wise=False):
     weights_list = []
     n_layer = int(len(state_dict)/2)
 
@@ -484,36 +484,58 @@ def fill_zero_weights(state_dict,n_conv_layer):
     for tensor in state_dict.items():
         weights.append(tensor[1])
 
-    for l in range(n_layer):
-        if l < n_conv_layer:
-            # conv layer
-            n_dim_0 = len(weights[l*2])
-            n_dim_1 = len(weights[l*2][0])
-            n_dim_2 = len(weights[l*2][0][0])
-            n_dim_3 = len(weights[l*2][0][0][0])
-            for i in range(n_dim_0):
-                for j in range(n_dim_1):
-                    for k in range(n_dim_2):
-                        for m in range(n_dim_3):
-                            if weights[l*2][i][j][k][m] == 0:
-                                #weights[l*2][i][o] = np.random.normal(0, 0.001, 1)[0]
-                                pass
-                            else:
-                                weights_list.append(weights[l*2][i][j][k][m].item())
-        else:
-            n_neurons_layer = weights[l*2].shape[0]
-            n_output = weights[l*2].shape[1]
+    if layer_wise == True:
+        layer_wise_weights_list = []
 
-            for i in range(n_neurons_layer):
-                for o in range(n_output):
-                    if weights[l*2][i][o] == 0:
-                        #weights[l*2][i][o] = np.random.normal(0, 0.001, 1)[0]
-                        pass
-                    else:
-                        weights_list.append(weights[l*2][i][o].item())
-    res = statistics.pstdev(weights_list)
-    # Printing result
-    #print("Standard deviation of weights is : " + str(res))
+    if lr == None:
+        for l in range(n_layer):
+            if layer_wise == True:
+                layer_wise_weights_list.append([])
+            if l < n_conv_layer:
+                # conv layer
+                n_dim_0 = len(weights[l*2])
+                n_dim_1 = len(weights[l*2][0])
+                n_dim_2 = len(weights[l*2][0][0])
+                n_dim_3 = len(weights[l*2][0][0][0])
+                for i in range(n_dim_0):
+                    for j in range(n_dim_1):
+                        for k in range(n_dim_2):
+                            for m in range(n_dim_3):
+                                if weights[l*2][i][j][k][m] == 0:
+                                    #weights[l*2][i][o] = np.random.normal(0, 0.001, 1)[0]
+                                    pass
+                                else:
+                                    weights_list.append(weights[l*2][i][j][k][m].item())
+                                    if layer_wise == True:
+                                        layer_wise_weights_list[l].append(weights[l*2][i][j][k][m].item())
+            else:
+                n_neurons_layer = weights[l*2].shape[0]
+                n_output = weights[l*2].shape[1]
+
+                for i in range(n_neurons_layer):
+                    for o in range(n_output):
+                        if weights[l*2][i][o] == 0:
+                            #weights[l*2][i][o] = np.random.normal(0, 0.001, 1)[0]
+                            pass
+                        else:
+                            weights_list.append(weights[l*2][i][o].item())
+                            if layer_wise == True:
+                                layer_wise_weights_list[l].append(weights[l*2][i][o].item())
+        res = statistics.pstdev(weights_list)
+        # Printing result
+        # print("Standard deviation of weights is : " + str(res))
+        if layer_wise == True:
+            res_layer = []
+            for l in range(n_layer):
+                print("layer = ",l)
+                res = statistics.pstdev(layer_wise_weights_list[l])
+                res_layer.append(res)
+                # Printing result
+                print("Standard deviation of weights is : " + str(res))
+                
+
+    else:
+        res = lr
 
     for tensor in state_dict.items():
         if "weight" in tensor[0]:
@@ -531,7 +553,10 @@ def fill_zero_weights(state_dict,n_conv_layer):
                             weight_list[i][j].append([])
                             for m in range(n_dim_3):
                                 if tensor[1][i][j][k][m] == 0:
-                                    weight_list[i][j][k].append(np.random.normal(0, res, 1)[0])
+                                    if layer_wise == False:
+                                        weight_list[i][j][k].append(np.random.normal(0, res, 1)[0])
+                                    else:
+                                        weight_list[i][j][k].append(np.random.normal(0, res_layer[l], 1)[0])
                                 else:
                                     weight_list[i][j][k].append(tensor[1][i][j][k][m].item())
                 weight_array = np.array(weight_list)
@@ -546,7 +571,10 @@ def fill_zero_weights(state_dict,n_conv_layer):
                     for j in range(n_dim_1):
                         
                         if tensor[1][i][j] == 0:
-                            weight_list[i].append(np.random.normal(0, res, 1)[0])
+                            if layer_wise == False:
+                                weight_list[i].append(np.random.normal(0, res, 1)[0])
+                            else:
+                                weight_list[i].append(np.random.normal(0, res_layer[l], 1)[0])
                         else:
                             weight_list[i].append(tensor[1][i][j].item())
                 weight_array = np.array(weight_list)

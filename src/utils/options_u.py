@@ -30,6 +30,9 @@ def args_parser():
     parser.add_argument('--in_ch', type=int, default=3, help='input channels of the first conv layer')
     parser.add_argument('--algorithm', type=str, default='sub_fedavg', help='model name')
     parser.add_argument('--n_conv_layer', type=int, default=2, help='number of conv layers')
+    parser.add_argument('--lr_decay', type=float, default=1, help="learning rate decay")
+    parser.add_argument('--layer_wise_fill_weights', type=bool, default=False, help="whether filling zeros in global weights are handled layerwise or not")
+    parser.add_argument('--early_stop_sparse_tr', type=int, default=1000, help="when to stop sparse training")
 
     # algorithm arguments
     parser.add_argument('--parameter_to_multiply_avg', type=int, default=0.8, help='parameter_to_multiply_avg')

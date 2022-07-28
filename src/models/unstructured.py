@@ -93,6 +93,9 @@ def weight_init(m):
         init.xavier_normal_(m.weight.data)
         if m.bias is not None:
             init.normal_(m.bias.data)
+        # init.normal_(m.weight.data)
+        # if m.bias is not None:
+        #     init.normal_(m.bias.data, mean=0, std=0.001)
     elif isinstance(m, nn.Conv3d):
         init.xavier_normal_(m.weight.data)
         if m.bias is not None:
@@ -121,4 +124,6 @@ def weight_init(m):
     elif isinstance(m, nn.Linear):
         init.xavier_normal_(m.weight.data)
         init.normal_(m.bias.data)
+        # init.normal_(m.weight.data)
+        # init.normal_(m.bias.data, mean=0, std=0.001)
     return 
