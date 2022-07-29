@@ -365,7 +365,7 @@ for iteration in range(args.rounds):
         mask_list,pruned_rate_list = global_multi_criteria_pruning(updated_weights_list_with_pruning_status,mask_list,args.lambda_value,args.pruning_percent,args.n_conv_layer,pruned_rate_list,args.pruning_target)  
         counter = 0
         for idx in idxs_users:
-            if updated_weights_list_with_pruning_status[idx][1] == True:
+            if updated_weights_list_with_pruning_status[counter][1] == True:
                 clients[idx].set_mask(mask_list[counter])
                 masks[counter] = copy.deepcopy(mask_list[counter])
                 clients[idx].set_pruned(pruned_rate_list[counter])
