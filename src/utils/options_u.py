@@ -35,10 +35,12 @@ def args_parser():
     parser.add_argument('--early_stop_sparse_tr', type=int, default=1000, help="when to stop sparse training")
 
     # algorithm arguments
-    parser.add_argument('--parameter_to_multiply_avg', type=int, default=0.8, help='parameter_to_multiply_avg')
+    parser.add_argument('--parameter_to_multiply_avg', type=float, default=0.8, help='parameter_to_multiply_avg')
     parser.add_argument('--delta_r', type=int, default=20, help='frequency of sparse training')
     parser.add_argument('--alpha', type=float, default=0.5, help='initial value of pruning')
     parser.add_argument('--lambda_value', type=int, default=1, help='weight of standard deviation in multi pruning')
+    parser.add_argument('--partial_global_update', type=bool, default=False, help='whether a global model is updated partially in each round')
+    parser.add_argument('--regrowth_param', type=float, default=0.5, help='percentage of regrowth from similar networks')
 
     # dataset partitioning arguments
     parser.add_argument('--dataset', type=str, default='cifar10', 
