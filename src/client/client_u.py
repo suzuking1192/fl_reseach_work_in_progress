@@ -243,7 +243,7 @@ class Client_Sub_Un(object):
         return train_loss, accuracy
 
 
-    def new_algorithm_client_update(self,iteration,delta_r,alpha,T_end,mask_list,selected_idx_list,n_conv_layer,acc_thresh,early_stop_sparse_tr):
+    def new_algorithm_client_update(self,iteration,delta_r,alpha,T_end,mask_list,selected_idx_list,n_conv_layer,acc_thresh,early_stop_sparse_tr,regrowth_param):
 
         def cosine_annealing(alpha,iteration,T_end):
             return alpha / 2 * (1 + np.cos((iteration * np.pi) / T_end))
@@ -255,11 +255,14 @@ class Client_Sub_Un(object):
                 print("mask_readjustment_rate = ",mask_readjustment_rate)
                 if mask_readjustment_rate != 0:
                     # Regrowth based on affinity matrix
-                    self.mask = regrowth_based_on_affinity_c_idxs(self.mask,mask_list,selected_idx_list,mask_readjustment_rate/2,n_conv_layer)
+                    self.mask = regrowth_based_on_affinity_c_idxs(self.mask,mask_list,selected_idx_list,mask_readjustment_rate*regrowth_param,n_conv_layer)
+                    # self.mask = regrowth_based_on_affinity_c_idxs(self.mask,mask_list,selected_idx_list,mask_readjustment_rate,n_conv_layer)
 
                     # Regrowth randomly
-                    next_mask_adjustment_rate = (1+mask_readjustment_rate)/(1+mask_readjustment_rate/2) - 1
+                    next_mask_adjustment_rate = (1+mask_readjustment_rate)/(1+mask_readjustment_rate*regrowth_param) - 1
                     self.mask,self.pruned,next_prune_rate = model_growing(self.mask,next_mask_adjustment_rate,n_conv_layer)
+
+        # self.pruned, _ = print_pruning(copy.deepcopy(self.net), is_print = True)
 
         new_dict = real_prune(copy.deepcopy(self.net), copy.deepcopy(self.mask))
         self.net.load_state_dict(new_dict)

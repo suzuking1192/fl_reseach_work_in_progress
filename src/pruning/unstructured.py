@@ -254,6 +254,7 @@ def calculate_correlation_between_label_similarity_and_network_similarity(users_
                 label_2 = np.unique(users_train_labels[ref_c_idx])
 
                 label_similarity = len(set(label_1)&set(label_2))
+                
                 label_similarity_list.append(label_similarity)
 
                 network_similarity_list.append(affinity_list[ref_c_idx])

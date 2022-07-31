@@ -584,3 +584,10 @@ def fill_zero_weights(state_dict,n_conv_layer,lr = None,layer_wise=False):
 
 
     return state_dict
+
+
+def weighted_global_model_update(server_state_dict,local_averaged_server_state_dict,frac):
+    for key,tensor in server_state_dict.items():
+        server_state_dict[key] =  (1/1+frac) * tensor + (frac/(1+frac)) * local_averaged_server_state_dict[key]
+
+    return server_state_dict
