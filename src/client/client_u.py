@@ -282,7 +282,7 @@ class Client_Sub_Un(object):
 
         return loss, weights_list,prune
 
-    def fedspa_client_update(self,pruner_state_dict,pruning_target,T_end,alpha,pruner=None, is_print = False):
+    def fedspa_client_update(self,pruner_state_dict,pruning_target,T_end,alpha,pruner=None, is_print = True):
         optimizer = torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=self.momentum)
         if pruner == None:
             pruner = RigLScheduler(self.net,
@@ -315,7 +315,7 @@ class Client_Sub_Un(object):
                 log_probs = self.net(images)
                 loss = self.loss_func(log_probs, labels)
                 loss.backward()
-
+                
                 if pruner():
                         
                     optimizer.step()

@@ -1,6 +1,51 @@
 import argparse
 import pickle
-from src.pruning.unstructured import *
+import csv
+
+def calculate_affinity_based_on_network(binary_mask_target,binary_mask_list_all,n_conv_layer=0,layer_from_last=5):
+    affinity_list = []
+    n_client = len(binary_mask_list_all)
+    n_layer = len(binary_mask_target)
+
+    for c_idx in range(n_client):
+        total_num = 0
+        overlap = 0
+
+        for l in range(n_layer):
+            if n_layer - layer_from_last > l:
+                continue
+            if l >= n_conv_layer:
+                input_size = len(binary_mask_target[l])
+                output_size = len(binary_mask_target[l][0])
+
+                for i in range(input_size):
+                    for o in range(output_size):
+                        if binary_mask_target[l][i][o] == 1:
+                            total_num += 1
+                            if binary_mask_list_all[c_idx][l][i][o] == 1:
+                                overlap += 1
+            else:
+                # conv layer
+                n_dim_0 = len(binary_mask_target[l])
+                n_dim_1 = len(binary_mask_target[l][0])
+                n_dim_2 = len(binary_mask_target[l][0][0])
+                n_dim_3 = len(binary_mask_target[l][0][0][0])
+                for i in range(n_dim_0):
+                    for j in range(n_dim_1):
+                        for k in range(n_dim_2):
+                            for m in range(n_dim_3):
+                                if binary_mask_target[l][i][j][k][m] == 1:
+                                    total_num += 1
+                                    if binary_mask_list_all[c_idx][l][i][j][k][m] == 1:
+                                        overlap += 1
+
+        affinity_list.append(overlap/total_num)
+
+
+    return affinity_list
+
+
+
 # Prepare parser
 
 def args_parser_mask():
@@ -15,6 +60,7 @@ def args_parser_mask():
     parser.add_argument('--n_conv_layer', type=int, default=2, help='number of conv layers')
     parser.add_argument('--percentage', type=float, default=0.2, help='percentage of selected clients')
     parser.add_argument('--top', type=str, help='whether we select top overlapped networks or worst')
+    parser.add_argument('--layers_from_last', type=int, default=5,help='whether we select top overlapped networks or worst')
 
     args = parser.parse_args()
     return args
@@ -55,7 +101,7 @@ top_label_similarity_list = []
 select_users_num = int(n_client*args.percentage)
 
 for c_idx in range(n_client):
-    affinity_list = calculate_affinity_based_on_network(mask_list[c_idx],mask_list,args.n_conv_layer)
+    affinity_list = calculate_affinity_based_on_network(mask_list[c_idx],mask_list,args.n_conv_layer,args.layers_from_last)
     #print("affinity_list = ",affinity_list)
     label_1 = label_list[c_idx]
     print("label_base = ",label_1)
@@ -63,11 +109,11 @@ for c_idx in range(n_client):
     # Get top 6 indicies based on affinity measures
     
 
-    if args.top == True:
-        selected_idx = sorted(range(len(affinity_list)), key=lambda i: affinity_list[i])[-select_users_num:]
-    else:
+    # if args.top == True:
+    selected_idx = sorted(range(len(affinity_list)), key=lambda i: affinity_list[i])[-select_users_num:]
+    # # else:
 
-        selected_idx = sorted(range(len(affinity_list)), key=lambda i: affinity_list[i])[:select_users_num]
+    # selected_idx = sorted(range(len(affinity_list)), key=lambda i: affinity_list[i])[:select_users_num]
 
     for ref_c_idx in selected_idx:
         if c_idx == ref_c_idx:
@@ -75,7 +121,8 @@ for c_idx in range(n_client):
         else:
             label_2 = label_list[ref_c_idx]
 
-            print("selected label",label_2)
+            print("selected label = ",label_2)
+            print("overlapped percentage = ", affinity_list[ref_c_idx])
 
             label_similarity = len(set(label_1)&set(label_2))
 
@@ -83,3 +130,10 @@ for c_idx in range(n_client):
 
     
 print("average label overlap in top 5 overlapped network",sum(top_label_similarity_list)/len(top_label_similarity_list))
+
+csv_rows_each_round = [[args.num_users,args.algorithm,args.model,args.dataset,args.seed,args.percentage,args.layers_from_last,sum(top_label_similarity_list)/len(top_label_similarity_list)]]
+with open('src/data/log/overlap.csv', 'a') as f:
+
+    # using csv.writer method from CSV package
+    write = csv.writer(f)
+    write.writerows(csv_rows_each_round)
