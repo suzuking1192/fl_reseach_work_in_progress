@@ -253,9 +253,9 @@ if args.algorithm == "fedspa":
             'S': S,
             'N': N,
             'hyperparams': {
-                'delta_T': args.local_ep,
+                'delta_T': args.local_ep*2,
                 'alpha': args.alpha,
-                'T_end': args.rounds,
+                'T_end': args.rounds*args.local_ep*2,
                 'ignore_linear_layers': False,
                 'static_topo': False,
                 'sparsity_distribution': "ERK",
@@ -492,7 +492,14 @@ test_acc = []
 train_loss = []
 train_acc = []
 
-for idx in range(args.num_users):        
+
+for idx in range(args.num_users):  
+    if args.algorithm == "fedavg":
+        dic = Sub_FedAvg_U_initial(copy.deepcopy(clients[idx].get_mask()), 
+                                     copy.deepcopy(clients[idx].get_net()), server_state_dict)
+            
+        clients[idx].set_state_dict(dic) 
+
     loss, acc = clients[idx].eval_test()
         
     test_loss.append(loss)

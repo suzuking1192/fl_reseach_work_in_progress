@@ -327,7 +327,7 @@ class RigLScheduler:
     @torch.no_grad()
     def _rigl_step(self):
         drop_fraction = self.cosine_annealing()
-
+        # print("drop_fraction = ",drop_fraction)
         # if distributed these values will be populated
         is_dist = dist.is_initialized()
         world_size = dist.get_world_size() if is_dist else None
@@ -358,7 +358,7 @@ class RigLScheduler:
             n_ones = torch.sum(current_mask).item()
             n_prune = int(n_ones * drop_fraction)
             n_keep = n_ones - n_prune
-
+            
             # create drop mask
             _, sorted_indices = torch.topk(score_drop.view(-1), k=n_total)
             new_values = torch.where(
@@ -378,13 +378,14 @@ class RigLScheduler:
                                 score_grow)
 
             # create grow mask
+            # print("score_grow_lifted=",score_grow_lifted)
             _, sorted_indices = torch.topk(score_grow_lifted, k=n_total)
             new_values = torch.where(
                             torch.arange(n_total, device=w.device) < n_prune,
                             torch.ones_like(sorted_indices),
                             torch.zeros_like(sorted_indices))
             mask2 = new_values.scatter(0, sorted_indices, new_values)
-            #print("mask2 =",mask2)
+            # print("mask2 =",mask2)
             mask2_reshaped = torch.reshape(mask2, current_mask.shape)
             grow_tensor = torch.zeros_like(w)
             
