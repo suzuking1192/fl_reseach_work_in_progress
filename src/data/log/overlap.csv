@@ -35,3 +35,19 @@ num_users,algorithm,model,seed,percentage,layers_for_count,average_pverlap_label
 10,sub_fedavg,lenet5,cifar10,3,0.2,1,0.8
 10,ours,lenet5,cifar10,3,0.2,1,0.9
 10,fedspa,lenet5,cifar10,3,0.2,1,0.6111111111111112
+10,ours,lenet5,cifar10,1,0.2,5,1.0
+10,ours,lenet5,cifar10,1,0.2,5,mask ratio of top k related clients,0.9832559628621738,0.9956512459313804,1.0126063645046455
+10,ours,lenet5,cifar10,1,0.2,5,1.0
+10,ours,lenet5,cifar10,1,0.2,5,mask ratio of top k related clients,0.9832559628621738,0.9956512459313804,1.0126063645046455
+10,ours,lenet5,cifar10,1,0.2,5,1.0
+10,ours,lenet5,cifar10,1,0.2,5,1.0
+10,ours,lenet5,cifar10,1,0.2,5,1.0
+10,ours,lenet5,cifar10,1,0.2,5,1.0
+10,ours,lenet5,cifar10,1,0.2,5,1.0
+10,ours,lenet5,cifar10,1,0.2,5,mask ratio of top k related clients,0.9805009290906805,0.9877251488352146,1.0073678866895452
+10,sub_fedavg,lenet5,cifar10,1,0.2,5,0.7
+10,sub_fedavg,lenet5,cifar10,1,0.2,5,mask ratio of top k related clients,0.9691440051313709,0.970346367498094,1.0012406436611658
+100,ours,lenet5,cifar10,1,0.2,5,0.4868421052631579
+100,sub_fedavg,lenet5,cifar10,1,0.2,5,0.4126315789473684
+100,ours,lenet5,cifar10,1,0.2,5,mask ratio of top k related clients,0.9476878932568042,0.9481517881286288,1.0004895017390487
+100,sub_fedavg,lenet5,cifar10,1,0.2,5,mask ratio of top k related clients,0.9002044818730961,0.9069599292273086,1.007504347612396
