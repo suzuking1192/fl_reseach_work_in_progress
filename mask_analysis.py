@@ -137,3 +137,55 @@ with open('src/data/log/overlap.csv', 'a') as f:
     # using csv.writer method from CSV package
     write = csv.writer(f)
     write.writerows(csv_rows_each_round)
+
+
+# select top k based on labels and compare mask overlap ratio
+
+def calculate_label_affinity_list(labels,label_list):
+    affinity_list = []
+    n_client = len(label_list)
+
+    for idx in range(n_client):
+        label_similarity = len(set(labels)&set(label_list[idx]))
+        affinity_list.append(label_similarity)
+    
+    return affinity_list
+
+top_k_mask_ratio_list = []
+overall_mask_ratio_list = []
+for c_idx in range(n_client):
+    affinity_list_based_on_mask_ratio = calculate_affinity_based_on_network(mask_list[c_idx],mask_list,args.n_conv_layer,args.layers_from_last)
+    label_based_affinity_list = calculate_label_affinity_list(label_list[c_idx],label_list)
+
+    selected_idx = sorted(range(len(label_based_affinity_list)), key=lambda i: label_based_affinity_list[i])[-select_users_num:]
+    print("base label",label_list[c_idx])
+
+    for ref_c_idx in range(n_client):
+        
+        if c_idx == ref_c_idx:
+            pass
+        
+
+        elif ref_c_idx in selected_idx:
+            label_2 = label_list[ref_c_idx]
+
+            print("selected label = ",label_2)
+
+            top_k_mask_ratio_list.append(affinity_list_based_on_mask_ratio[ref_c_idx])
+            overall_mask_ratio_list.append(affinity_list_based_on_mask_ratio[ref_c_idx])
+        else:
+            overall_mask_ratio_list.append(affinity_list_based_on_mask_ratio[ref_c_idx])
+
+avg_all_mask_ratio = sum(overall_mask_ratio_list)/len(overall_mask_ratio_list)
+avg_top_k_mask_ratio =    sum(top_k_mask_ratio_list)/len(top_k_mask_ratio_list)
+print("average mask ratio overall",avg_all_mask_ratio)
+print("average mask ratio top k ",avg_top_k_mask_ratio)
+print("average mask ratio top k/average mask ratio overall ",avg_top_k_mask_ratio/avg_all_mask_ratio)
+
+csv_rows_each_round = [[args.num_users,args.algorithm,args.model,args.dataset,args.seed,args.percentage,args.layers_from_last,"mask ratio of top k related clients",avg_all_mask_ratio,avg_top_k_mask_ratio,avg_top_k_mask_ratio/avg_all_mask_ratio]]
+with open('src/data/log/overlap.csv', 'a') as f:
+
+    # using csv.writer method from CSV package
+    write = csv.writer(f)
+    write.writerows(csv_rows_each_round)
+# select top k based on labels and compare weight divergence

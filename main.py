@@ -112,7 +112,23 @@ elif args.dataset == 'cifar100':
     if args.noniid: 
         if args.shard:
             print(f'--CIFAR-100 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-            user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
+            if args.load_data:
+                # Load dataset
+                file_name_train = 'src/data/'  + str(args.dataset) + "/train.p"
+                with open(file_name_train, 'rb') as fp:
+                    user_groups_train = pickle.load(fp)
+                
+                file_name_test = 'src/data/'  + str(args.dataset) + "/test.p"
+                with open(file_name_test, 'rb') as fp:
+                    user_groups_test = pickle.load(fp)
+                
+                file_name_val = 'src/data/'  + str(args.dataset) + "/val.p"
+                with open(file_name_val, 'rb') as fp:
+                    user_groups_val = pickle.load(fp)
+
+            else:
+            
+                user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
                         args.num_users, nclass_cifar100, nsamples_cifar100, args.split_test)
             
         elif args.label: 
@@ -140,7 +156,23 @@ elif args.dataset == 'mnist':
     if args.noniid: 
         if args.shard:
             print(f'--MNIST Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
-            user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
+            
+            if args.load_data:
+                # Load dataset
+                file_name_train = 'src/data/'  + str(args.dataset) + "/train.p"
+                with open(file_name_train, 'rb') as fp:
+                    user_groups_train = pickle.load(fp)
+                
+                file_name_test = 'src/data/'  + str(args.dataset) + "/test.p"
+                with open(file_name_test, 'rb') as fp:
+                    user_groups_test = pickle.load(fp)
+                
+                file_name_val = 'src/data/'  + str(args.dataset) + "/val.p"
+                with open(file_name_val, 'rb') as fp:
+                    user_groups_val = pickle.load(fp)
+
+            else:
+                user_groups_train, user_groups_test, user_groups_val = noniid_shard(args.dataset, train_dataset, test_dataset, 
                             args.num_users, nclass_mnist, nsamples_mnist, args.split_test)
         elif args.label: 
             print(f'--MNIST Non-IID-- {args.nclass} random Labels, Sample per label {args.nsample_pc}')
@@ -205,13 +237,21 @@ elif args.model == 'fl' and args.dataset == 'cifar10':
 
 
 if args.load_initial:
-    file_path = "src/data/weights/" + str(args.model)  + str("_seed_") + str(args.seed) + ".pt"
+    if args.dataset == "cifar10":
+        file_path = "src/data/weights/" + str(args.model)  + str("_seed_") + str(args.seed) + ".pt"
+    else:
+        file_path = "src/data/weights/" + str(args.model) + str("_dataset_")  + str(args.dataset) + str("_seed_") + str(args.seed) + ".pt"
+
     initial_state_dict = torch.load(file_path)
 
     net_glob.load_state_dict(initial_state_dict)
 else:
     # save initial weights
-    file_path = "src/data/weights/" + str(args.model)  + str("_seed_") + str(args.seed) + ".pt"
+    if args.dataset == "cifar10":
+        file_path = "src/data/weights/" + str(args.model)  + str("_seed_") + str(args.seed) + ".pt"
+    else:
+        file_path = "src/data/weights/" + str(args.model) + str("_dataset_")  + str(args.dataset) + str("_seed_") + str(args.seed) + ".pt"
+
     torch.save(net_glob.state_dict(),file_path)
 
 initial_state_dict = copy.deepcopy(net_glob.state_dict())
