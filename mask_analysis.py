@@ -188,4 +188,110 @@ with open('src/data/log/overlap.csv', 'a') as f:
     # using csv.writer method from CSV package
     write = csv.writer(f)
     write.writerows(csv_rows_each_round)
+
+
 # select top k based on labels and compare weight divergence
+
+
+def calculate_affinity_based_on_weight_divergence_of_locally_trained_models(locally_trained_weights_list,target_idx,n_conv_layer):
+    n_client = len(locally_trained_weights_list)
+    n_layer = int(len(locally_trained_weights_list[0])/2)
+    affinity_based_on_weight_divergence_list = []
+
+    weights_target = locally_trained_weights_list[target_idx]
+
+    for c_idx in range(n_client):
+        weight_divergence = 0 
+
+        for l in range(n_layer):
+            if l >= n_conv_layer:
+                input_size = len(weights_target[l*2])
+                output_size = len(weights_target[l*2][0])
+
+                for o in range(output_size):
+                    for i in range(input_size):
+                    
+                        weight_divergence += (weights_target[l*2][i][o] - locally_trained_weights_list[c_idx][l*2][i][o])**2
+                        
+                # Bias
+                bias_input_size = len(weights_target[l*2+1])
+                for o in range(bias_input_size):
+                    weight_divergence += (weights_target[l*2+1][o] - locally_trained_weights_list[c_idx][l*2+1][o])**2
+            else:
+                # conv layer
+                n_dim_0 = len(weights_target[l*2])
+                n_dim_1 = len(weights_target[l*2][0])
+                n_dim_2 = len(weights_target[l*2][0][0])
+                n_dim_3 = len(weights_target[l*2][0][0][0])
+                for i in range(n_dim_0):
+                    for j in range(n_dim_1):
+                        for k in range(n_dim_2):
+                            for m in range(n_dim_3):
+                                
+
+                                weight_divergence += (weights_target[l*2][i][j][k][m] - locally_trained_weights_list[c_idx][l*2][i][j][k][m])**2
+
+                for o in range(n_dim_3):
+                
+                    weight_divergence += (weights_target[l*2+1][o] - locally_trained_weights_list[c_idx][l*2+1][o])**2
+
+
+        affinity_based_on_weight_divergence_list.append(- weight_divergence)
+
+    return affinity_based_on_weight_divergence_list
+
+final_weights_list = []
+for c_idx in range(n_client):
+    file_name_weights = "src/data/weights/" + str(args.algorithm) +"_"+str(args.model)+ "_" + str(args.num_users) + "_" + str(args.dataset) + "_" + str(args.seed) + "_client_id_" + str(c_idx) + ".pickle"
+    file = open(file_name_weights, 'rb')
+
+    # dump information to that file
+    weights = pickle.load(file)
+
+    weights_list = []
+    for tensor in weights.items():
+        
+        weights_list.append(tensor[1])
+
+    
+    final_weights_list.append(weights_list)
+
+top_k_network_similarity_list = []
+overall_network_similarity_list = []
+for c_idx in range(n_client):
+    affinity_list_based_on_network_similarity = calculate_affinity_based_on_weight_divergence_of_locally_trained_models(final_weights_list,c_idx,args.n_conv_layer)
+    label_based_affinity_list = calculate_label_affinity_list(label_list[c_idx],label_list)
+    
+
+    selected_idx = sorted(range(len(label_based_affinity_list)), key=lambda i: label_based_affinity_list[i])[-select_users_num:]
+    print("base label",label_list[c_idx])
+
+    for ref_c_idx in range(n_client):
+        
+        if c_idx == ref_c_idx:
+            pass
+        
+
+        elif ref_c_idx in selected_idx:
+            label_2 = label_list[ref_c_idx]
+
+            print("selected label = ",label_2)
+
+            top_k_network_similarity_list.append(affinity_list_based_on_network_similarity[ref_c_idx])
+            overall_network_similarity_list.append(affinity_list_based_on_network_similarity[ref_c_idx])
+        else:
+            overall_network_similarity_list.append(affinity_list_based_on_network_similarity[ref_c_idx])
+
+avg_all_network_similarity= sum(overall_network_similarity_list)/len(overall_network_similarity_list)
+avg_top_k_network_similarity =    sum(top_k_network_similarity_list)/len(top_k_network_similarity_list)
+print("average network aimilarity overall",avg_all_network_similarity)
+print("average network similarity top k ",avg_top_k_network_similarity)
+print("average network similarity top k/average network similarity overall ",avg_all_network_similarity/avg_top_k_network_similarity)
+
+csv_rows_each_round = [[args.num_users,args.algorithm,args.model,args.dataset,args.seed,args.percentage,args.layers_from_last,"network similarity of top k related clients",avg_all_network_similarity,avg_top_k_network_similarity,avg_all_network_similarity/avg_top_k_network_similarity]]
+with open('src/data/log/overlap.csv', 'a') as f:
+
+    # using csv.writer method from CSV package
+    write = csv.writer(f)
+    write.writerows(csv_rows_each_round)
+

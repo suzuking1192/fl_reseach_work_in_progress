@@ -114,6 +114,7 @@ elif args.dataset == 'cifar100':
             print(f'--CIFAR-100 Non-IID-- {args.nclass} random Shards, Sample per shard {args.nsample_pc}')
             if args.load_data:
                 # Load dataset
+                print(" load non IID dataset")
                 file_name_train = 'src/data/'  + str(args.dataset) + "/train.p"
                 with open(file_name_train, 'rb') as fp:
                     user_groups_train = pickle.load(fp)
@@ -159,6 +160,7 @@ elif args.dataset == 'mnist':
             
             if args.load_data:
                 # Load dataset
+                print(" load non IID dataset")
                 file_name_train = 'src/data/'  + str(args.dataset) + "/train.p"
                 with open(file_name_train, 'rb') as fp:
                     user_groups_train = pickle.load(fp)
@@ -237,6 +239,7 @@ elif args.model == 'fl' and args.dataset == 'cifar10':
 
 
 if args.load_initial:
+    print(" load initial weights")
     if args.dataset == "cifar10":
         file_path = "src/data/weights/" + str(args.model)  + str("_seed_") + str(args.seed) + ".pt"
     else:
@@ -247,6 +250,7 @@ if args.load_initial:
     net_glob.load_state_dict(initial_state_dict)
 else:
     # save initial weights
+    print(" create new initial weights")
     if args.dataset == "cifar10":
         file_path = "src/data/weights/" + str(args.model)  + str("_seed_") + str(args.seed) + ".pt"
     else:
