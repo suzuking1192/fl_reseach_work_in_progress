@@ -129,9 +129,9 @@ for c_idx in range(n_client):
             top_label_similarity_list.append(label_similarity)
 
     
-print("average label overlap in top 5 overlapped network",sum(top_label_similarity_list)/len(top_label_similarity_list))
+print("average label overlap in top 5 overlapped network",(sum(top_label_similarity_list)/len(top_label_similarity_list))/2)
 
-csv_rows_each_round = [[args.num_users,args.algorithm,args.model,args.dataset,args.seed,args.percentage,args.layers_from_last,sum(top_label_similarity_list)/len(top_label_similarity_list)]]
+csv_rows_each_round = [[args.num_users,args.algorithm,args.model,args.dataset,args.seed,args.percentage,args.layers_from_last,(sum(top_label_similarity_list)/len(top_label_similarity_list))/2]]
 with open('src/data/log/overlap.csv', 'a') as f:
 
     # using csv.writer method from CSV package
@@ -157,7 +157,12 @@ for c_idx in range(n_client):
     affinity_list_based_on_mask_ratio = calculate_affinity_based_on_network(mask_list[c_idx],mask_list,args.n_conv_layer,args.layers_from_last)
     label_based_affinity_list = calculate_label_affinity_list(label_list[c_idx],label_list)
 
-    selected_idx = sorted(range(len(label_based_affinity_list)), key=lambda i: label_based_affinity_list[i])[-select_users_num:]
+    # selected_idx = sorted(range(len(label_based_affinity_list)), key=lambda i: label_based_affinity_list[i])[-select_users_num:]
+    selected_idx = []
+    for ref_c_idx in range(n_client):
+        if label_based_affinity_list[ref_c_idx] >= 1:
+            selected_idx.append(ref_c_idx)
+    
     print("base label",label_list[c_idx])
 
     for ref_c_idx in range(n_client):
@@ -263,7 +268,12 @@ for c_idx in range(n_client):
     label_based_affinity_list = calculate_label_affinity_list(label_list[c_idx],label_list)
     
 
-    selected_idx = sorted(range(len(label_based_affinity_list)), key=lambda i: label_based_affinity_list[i])[-select_users_num:]
+    # selected_idx = sorted(range(len(label_based_affinity_list)), key=lambda i: label_based_affinity_list[i])[-select_users_num:]
+    selected_idx = []
+    for ref_c_idx in range(n_client):
+        if label_based_affinity_list[ref_c_idx] >= 1:
+            selected_idx.append(ref_c_idx)
+    
     print("base label",label_list[c_idx])
 
     for ref_c_idx in range(n_client):
@@ -294,4 +304,5 @@ with open('src/data/log/overlap.csv', 'a') as f:
     # using csv.writer method from CSV package
     write = csv.writer(f)
     write.writerows(csv_rows_each_round)
+
 
