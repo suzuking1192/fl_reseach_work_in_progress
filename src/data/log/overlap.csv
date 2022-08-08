@@ -73,3 +73,21 @@ num_users,algorithm,model,seed,percentage,layers_for_count,average_pverlap_label
 10,DisPFL,lenet5,cifar10,1,0.3,5,0.4
 10,DisPFL,lenet5,cifar10,1,0.3,5,mask ratio of top k related clients,0.9039860596819862,0.903615769984753,0.9995903811864494
 10,DisPFL,lenet5,cifar10,1,0.3,5,network similarity of top k related clients,tensor(-0.9412),tensor(-0.9323),tensor(1.0096)
+100,sub_fedavg,lenet5,cifar10,1,0.3,5,0.41517241379310343
+100,ours,lenet5,cifar10,1,0.3,5,0.45275862068965517
+100,sub_fedavg,lenet5,cifar10,1,0.3,5,mask ratio of top k related clients,0.9002044818730961,0.9020382665072645,1.002037075654581
+100,ours,lenet5,cifar10,1,0.3,5,mask ratio of top k related clients,0.9476878932568042,0.9481420401163504,1.000479215639218
+100,ours,lenet5,cifar10,1,0.3,5,network similarity of top k related clients,tensor(-7.7813),tensor(-7.6202),tensor(1.0211)
+100,sub_fedavg,lenet5,cifar10,1,0.3,5,network similarity of top k related clients,tensor(-35.3665),tensor(-34.5272),tensor(1.0243)
+100,ours,lenet5,cifar10,1,0.3,5,0.45275862068965517
+100,sub_fedavg,lenet5,cifar10,1,0.3,5,0.41517241379310343
+100,ours,lenet5,cifar10,1,0.3,5,mask ratio of top k related clients,0.9476878932568042,0.9480975983490126,1.0004323206987487
+100,sub_fedavg,lenet5,cifar10,1,0.3,5,mask ratio of top k related clients,0.9002044818730961,0.9177780200960881,1.019521718206097
+100,ours,lenet5,cifar10,1,0.3,5,network similarity of top k related clients,tensor(-7.7813),tensor(-7.4845),tensor(1.0397)
+100,sub_fedavg,lenet5,cifar10,1,0.3,5,network similarity of top k related clients,tensor(-35.3665),tensor(-28.5056),tensor(1.2407)
+10,DisPFL,lenet5,cifar10,1,0.3,5,0.4
+10,DisPFL,lenet5,cifar10,1,0.3,5,mask ratio of top k related clients,0.9039860596819862,0.903873711724312,0.9998757193692636
+10,DisPFL,lenet5,cifar10,1,0.3,5,network similarity of top k related clients,tensor(-0.9412),tensor(-0.9319),tensor(1.0100)
+10,ours,lenet5,cifar10,1,0.3,5,0.8
+10,ours,lenet5,cifar10,1,0.3,5,mask ratio of top k related clients,0.9805009290906805,0.9869448577985847,1.0065720781252907
+10,ours,lenet5,cifar10,1,0.3,5,network similarity of top k related clients,tensor(-5.5196),tensor(-2.0873),tensor(2.6444)
