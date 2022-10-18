@@ -343,6 +343,9 @@ ckp_avg_best_tacc_after = []
 # prepare columns to save results
 csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","lr","momentum","warmup_epoch","model","ks","in_ch","dataset","nclass","nsample_pc","noniid","pruning_percent","pruning_target","dist_thresh_fc","acc_thresh","weight-decay","seed","algorithm","avg_final_tacc","personalized_parameters_percentage","corr_label_network_similarity"]
 
+if args.algorithm == "create_data_to_learn_positive_transfer":
+    create_data_to_learn_positive_transfer(clients,args,initial_state_dict,len(clients),users_train_labels,train_dataset,test_dataset,user_groups_train)
+
 # Create affinity matrix and select related clients
 if args.algorithm == "ours":
     selected_idx_mat = create_selected_idx_mat(clients,args.n_conv_layer,args.parameter_to_multiply_avg) 
@@ -587,15 +590,15 @@ for idx in range(args.num_users):
     final_mask = clients[idx].get_mask()
     final_weights = clients[idx].get_state_dict()
 
-    file_name_mask = "src/data/masks/" + str(args.algorithm) +"_"+str(args.model) + "_" + str(args.num_users)  + "_" + str(args.dataset) + "_" + str(args.seed) + "_client_id_" + str(idx) + ".pickle"
+    file_name_mask = "src/data/masks/" + str(args.algorithm) +"_"+str(args.model) + "_" + str(args.num_users)  + "_" + str(args.dataset) + "_" + str(args.seed) + "_"+ str(args.pruning_target)+ "_"+ str(args.parameter_to_multiply_avg) + "_" + str(args.regrowth_param) + "_" + str(args.lambda_value) + "_client_id_" + str(idx) + ".pickle"
     with open(file_name_mask, 'wb') as fp:
         pickle.dump(final_mask, fp)
 
-    file_name_weights = "src/data/weights/" + str(args.algorithm) +"_"+str(args.model)+ "_" + str(args.num_users) + "_" + str(args.dataset) + "_" + str(args.seed) + "_client_id_" + str(idx) + ".pickle"
+    file_name_weights = "src/data/weights/" + str(args.algorithm) +"_"+str(args.model)+ "_" + str(args.num_users) + "_" + str(args.dataset) + "_" + str(args.seed) + "_"+ str(args.pruning_target)+ "_"+ str(args.parameter_to_multiply_avg) + "_" + str(args.regrowth_param) + "_" + str(args.lambda_value) + "_client_id_" + str(idx) + ".pickle"
     with open(file_name_weights, 'wb') as fp:
         pickle.dump(final_weights, fp)
 
-    file_name_weights = "src/data/labels/" + str(args.algorithm) +"_"+str(args.model)+ "_" + str(args.num_users) + "_" + str(args.dataset) + "_" + str(args.seed) + "_client_id_" + str(idx) + ".pickle"
+    file_name_weights = "src/data/labels/" + str(args.algorithm) +"_"+str(args.model)+ "_" + str(args.num_users) + "_" + str(args.dataset) + "_" + str(args.seed) + "_"+ str(args.pruning_target)+ "_"+ str(args.parameter_to_multiply_avg) + "_" + str(args.regrowth_param) + "_" + str(args.lambda_value) + "_client_id_" + str(idx) + ".pickle"
     label = np.unique(users_train_labels[idx])
     with open(file_name_weights, 'wb') as fp:
         pickle.dump(label, fp)
