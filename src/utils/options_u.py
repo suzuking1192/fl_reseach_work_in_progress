@@ -30,6 +30,7 @@ def args_parser():
     parser.add_argument('--in_ch', type=int, default=3, help='input channels of the first conv layer')
     parser.add_argument('--algorithm', type=str, default='sub_fedavg', help='model name')
     parser.add_argument('--n_conv_layer', type=int, default=2, help='number of conv layers')
+    parser.add_argument('--n_layer', type=int, default=5, help='number of conv layers')
     parser.add_argument('--lr_decay', type=float, default=1, help="learning rate decay")
     parser.add_argument('--layer_wise_fill_weights', type=bool, default=False, help="whether filling zeros in global weights are handled layerwise or not")
     parser.add_argument('--early_stop_sparse_tr', type=int, default=1000, help="when to stop sparse training")
@@ -38,7 +39,7 @@ def args_parser():
     parser.add_argument('--parameter_to_multiply_avg', type=float, default=0.8, help='parameter_to_multiply_avg')
     parser.add_argument('--delta_r', type=int, default=20, help='frequency of sparse training')
     parser.add_argument('--alpha', type=float, default=0.5, help='initial value of pruning')
-    parser.add_argument('--lambda_value', type=int, default=1, help='weight of standard deviation in multi pruning')
+    parser.add_argument('--lambda_value', type=float, default=1, help='weight of standard deviation in multi pruning')
     parser.add_argument('--partial_global_update', type=bool, default=False, help='whether a global model is updated partially in each round')
     parser.add_argument('--regrowth_param', type=float, default=0.5, help='percentage of regrowth from similar networks')
 
