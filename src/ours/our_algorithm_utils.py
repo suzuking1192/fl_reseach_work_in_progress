@@ -4,6 +4,10 @@ import random
 import copy
 import statistics
 import torch
+from src.sub_fedavg import * 
+import csv
+from scipy.spatial import distance
+import pickle
 
 def calculate_affinity_based_on_weight_divergence_of_locally_trained_models(locally_trained_weights_list,target_idx,n_conv_layer):
     n_client = len(locally_trained_weights_list)
@@ -591,3 +595,210 @@ def weighted_global_model_update(server_state_dict,local_averaged_server_state_d
         server_state_dict[key] =  (1/1+frac) * tensor + (frac/(1+frac)) * local_averaged_server_state_dict[key]
 
     return server_state_dict
+
+
+def create_data_to_learn_positive_transfer(clients,args,initial_state_dict,num_client,users_train_labels,train_dataset,test_dataset,user_groups_train,training_round=100,bias=True,total=True,labels=True,distance_change_over_training=5,cosine=True,prediction_dist=True,val_acc_another_model=True):
+    # Local training
+    locally_trained_weights_list  = []
+    for c_idx in range(num_client):
+        clients[c_idx].local_train()
+        locally_trained_weights_list.append(clients[c_idx].get_state_dict())
+    
+        # Convert tensor into numpy arrays, then save them
+        local_weights_tensor = clients[c_idx].get_state_dict()
+        local_weights_array = []
+
+        for tensor in local_weights_tensor.items():
+            local_weights_array.append(tensor[1].numpy())
+        
+        local_weights_array = np.array(local_weights_array)
+
+        numpy_filename = "src/data/weights/local_weights_array_for_positive_transfer_training_" + str(c_idx) +".npy" 
+        with open(numpy_filename, 'wb') as f:
+            np.save(f, local_weights_array)
+
+
+    # For each possible pair, first calculate l2 distance of each layer and save it
+    # Then, create average parameters and local train and save average of validation accuracy
+    l2_dis_list = []
+    positive_transfer_list = []
+    counter = 0
+    for c_idx in range(num_client):
+        for ref_idx in range(num_client):
+            if c_idx != ref_idx:
+                clients[c_idx].set_state_dict(locally_trained_weights_list[c_idx])
+                clients[ref_idx].set_state_dict(locally_trained_weights_list[ref_idx])
+                loss_c,init_val_acc_c = clients[c_idx].eval_val()
+                loss_c,init_val_acc_ref = clients[ref_idx].eval_val()
+                
+                l2_dis_list.append([])
+                for tensor in locally_trained_weights_list[c_idx].items():
+                    if cosine == True:
+                        weight_1 = torch.flatten(tensor[1])
+                        weight_2 = torch.flatten(locally_trained_weights_list[ref_idx][tensor[0]])
+                        
+
+
+                        # cosine_sim = distance.cosine(weight_1.tolist(), weight_2.tolist())
+                        cosine_sim = torch.sum(weight_1*weight_2)/(torch.norm(weight_1)*torch.norm(weight_2)+1e-12)
+                        l2_dis_list[counter].append(cosine_sim.detach().numpy().item())
+                    else:
+                        if "weight" in tensor[0]:
+                            if "conv" in tensor[0]:
+                                l2_dist = (tensor[1] - locally_trained_weights_list[ref_idx][tensor[0]]).pow(2).sum(3).sum(1).sum(1).sum().sqrt()  
+                            else:
+                                l2_dist = (tensor[1] - locally_trained_weights_list[ref_idx][tensor[0]]).pow(2).sum(1).sum().sqrt()  
+                            l2_dis_list[counter].append(l2_dist.detach().numpy().item())
+                        elif bias == True:
+                            
+                            l2_dist = (tensor[1] - locally_trained_weights_list[ref_idx][tensor[0]]).pow(2).sum().sqrt()  
+                            l2_dis_list[counter].append(l2_dist.detach().numpy().item())
+                
+                if val_acc_another_model == True:
+
+                    clients[c_idx].set_state_dict(locally_trained_weights_list[ref_idx])
+                    clients[ref_idx].set_state_dict(locally_trained_weights_list[c_idx])
+                    loss_c,init_val_acc_switch_c = clients[c_idx].eval_val()
+                    loss_c,init_val_acc_sqitch_ref = clients[ref_idx].eval_val()
+                    avg_val_switch_acc = ((init_val_acc_switch_c - init_val_acc_c) + (init_val_acc_sqitch_ref - init_val_acc_ref) )/2
+                    l2_dis_list[counter].append(avg_val_switch_acc.detach().numpy().item())
+
+                    clients[c_idx].set_state_dict(locally_trained_weights_list[c_idx])
+                    clients[ref_idx].set_state_dict(locally_trained_weights_list[ref_idx])
+
+                
+                if labels == True:
+                    similarity = len(set(users_train_labels[c_idx]) & set(users_train_labels[ref_idx])) 
+                    l2_dis_list[counter].append(similarity)
+                
+                if total == True:
+                    if cosine == True:
+                        counter_tensor = 0
+                        for tensor in locally_trained_weights_list[c_idx].items():
+                            if counter == 0:
+                                weight_1 = torch.flatten(tensor[1])
+                                counter_tensor += 1
+                            else:
+                                weight_1 = torch.cat((weight_1, torch.flatten(tensor[1])), 0)
+                        counter_tensor = 0
+                        for tensor in locally_trained_weights_list[ref_idx].items():
+                            if counter == 0:
+                                weight_2 = torch.flatten(tensor[1])
+                                counter_tensor += 1
+                            else:
+                                weight_2 = torch.cat((weight_1, torch.flatten(tensor[1])), 0)
+
+                        weight_1 = torch.flatten(tensor[1])
+                        weight_2 = torch.flatten(locally_trained_weights_list[ref_idx][tensor[0]])
+                        cosine_sim = torch.sum(weight_1*weight_2)/(torch.norm(weight_1)*torch.norm(weight_2)+1e-12)
+                        l2_dis_list[counter].append(cosine_sim.detach().numpy().item())
+
+                    else:
+                        num_weights = len(l2_dis_list[counter])
+                        sum = 0 
+                        for i in range(num_weights):
+                            sum += l2_dis_list[counter][i]
+                        l2_dis_list[counter].append(sum)
+
+                if prediction_dist == True:
+                    
+                    n_data = 10
+                    
+                    model_1 = clients[c_idx].get_net()
+                    model_2 = clients[ref_idx].get_net()
+                    for i in range(n_data):
+                        if i == 0:
+                            pred_1 = model_1(test_dataset[i][0])
+                            pred_2 = model_2(test_dataset[i][0])
+                        else:
+                            pred_1 = torch.cat((pred_1,model_1(test_dataset[i][0])),0)
+                            pred_2 = torch.cat((pred_2,model_2(test_dataset[i][0])),0)
+
+                        
+                    
+                    loss = nn.CrossEntropyLoss()
+                    
+
+                    prediction_cross_entropy = loss(pred_1, pred_2)
+                    
+
+
+                    # prediction_dist = (pred_1 - pred_2).pow(2).sum(1).sum().sqrt()  
+                    l2_dis_list[counter].append(prediction_cross_entropy.detach().numpy().item())
+                
+                # Create an average global model
+                for i_round in range(training_round):
+                    masks = []
+                    w_locals = []
+                    masks.append(copy.deepcopy(clients[c_idx].get_mask())) 
+                    masks.append(copy.deepcopy(clients[ref_idx].get_mask()))         
+                    w_locals.append(copy.deepcopy(clients[c_idx].get_state_dict()))
+                    w_locals.append(copy.deepcopy(clients[ref_idx].get_state_dict()))
+
+                    avg_server_state_dict = Sub_FedAVG_U(initial_state_dict, w_locals, masks)
+
+                    clients[c_idx].set_state_dict(avg_server_state_dict)
+                    clients[ref_idx].set_state_dict(avg_server_state_dict)
+
+                    clients[c_idx].local_train()
+                    clients[ref_idx].local_train()
+                    if i_round < distance_change_over_training:
+                        dist_sum = 0
+                        for tensor in clients[c_idx].get_state_dict().items():
+                            if "weight" in tensor[0]:
+                                if "conv" in tensor[0]:
+                                    l2_dist = (tensor[1] - clients[ref_idx].get_state_dict()[tensor[0]]).pow(2).sum(3).sum(1).sum(1).sum().sqrt()  
+                                else:
+                                    l2_dist = (tensor[1] - clients[ref_idx].get_state_dict()[tensor[0]]).pow(2).sum(1).sum().sqrt()  
+                                dist_sum += l2_dist.detach().numpy().item()
+                            elif bias == True:
+                                
+                                l2_dist = (tensor[1] - clients[ref_idx].get_state_dict()[tensor[0]]).pow(2).sum().sqrt()  
+                                dist_sum += l2_dist.detach().numpy().item()
+
+                        change_dist = l2_dis_list[counter][-1-i_round*2] - dist_sum
+                        l2_dis_list[counter].append(change_dist)
+
+                        loss_c,middle_val_acc_c = clients[c_idx].eval_val()
+                        loss_c,middle_val_acc_ref = clients[ref_idx].eval_val()
+                        avg_val_acc = ((middle_val_acc_c - init_val_acc_c) + (middle_val_acc_ref - init_val_acc_ref) )/2
+                        l2_dis_list[counter].append(avg_val_acc.detach().numpy().item())
+
+                    if i_round == 0:
+                        loss_c,val_acc_c = clients[c_idx].eval_val()
+                        loss_ref,val_acc_ref = clients[ref_idx].eval_val()
+                    else:
+                        loss_c,val_middle_acc_c = clients[c_idx].eval_val()
+                        loss_ref,val_middle_acc_ref = clients[ref_idx].eval_val()
+
+                        if val_middle_acc_c > val_acc_c:
+                            val_acc_c = val_middle_acc_c
+                        if val_middle_acc_ref > val_acc_ref:
+                            val_acc_ref = val_middle_acc_ref
+
+                
+
+                avg_val_acc = ((val_acc_c - init_val_acc_c) + (val_acc_ref - init_val_acc_ref) )/2
+                positive_transfer_list.append(avg_val_acc.detach().numpy().item())
+                counter += 1
+    
+
+    with open('l2_dist_list.csv', 'w') as f:
+    # using csv.writer method from CSV package
+        write = csv.writer(f)
+        
+        write.writerows(l2_dis_list)
+
+    with open('positive_transfer_list.csv', 'w') as f:
+    # using csv.writer method from CSV package
+        write = csv.writer(f)
+        
+        write.writerows([positive_transfer_list])
+
+    
+    
+    with open("training_data_ids.pickle", 'wb') as fp:
+        pickle.dump(user_groups_train, fp)
+
+    with open("training_data.pickle", 'wb') as fp:
+        pickle.dump(train_dataset, fp)
