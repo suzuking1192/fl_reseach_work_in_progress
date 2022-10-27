@@ -212,8 +212,8 @@ for i in range(args.num_users):
     label = set(label)
     users_test_labels[i] = list(label) 
     
-    #print(f'Client: {i}, Train Labels: {users_train_labels[i]}, Test Labels: {users_test_labels[i]},'
-          #f' Num Train: {train_count_per_client}, Num Test: {test_count_per_client}')
+    # print(f'Client: {i}, Train Labels: {users_train_labels[i]}, Test Labels: {users_test_labels[i]},'
+    #       f' Num Train: {train_count_per_client}, Num Test: {test_count_per_client}')
         
 ## 
 # build model
@@ -236,6 +236,15 @@ elif args.model == 'fl' and args.dataset == 'cifar10':
     net_glob = FLCifar10().to(args.device)
     net_glob.apply(weight_init)
     users_model = [FLCifar10().to(args.device).apply(weight_init) for _ in range(args.num_users)]
+elif args.model == 'lenet5_add_1fl' and args.dataset == 'cifar10':
+    net_glob = LeNet5Cifar10_add_1FL().to(args.device)
+    net_glob.apply(weight_init)
+    users_model = [LeNet5Cifar10_add_1FL().to(args.device).apply(weight_init) for _ in range(args.num_users)]
+elif args.model == 'lenet5_add_1fl_add_1conv' and args.dataset == 'cifar10':
+    net_glob = LeNet5Cifar10_add_1FL_add_1conv().to(args.device)
+    net_glob.apply(weight_init)
+    users_model = [LeNet5Cifar10_add_1FL_add_1conv().to(args.device).apply(weight_init) for _ in range(args.num_users)]
+
 
 
 if args.load_initial:
@@ -270,14 +279,83 @@ for i in range(args.num_users):
 mask_init = make_init_mask(net_glob)
 
 clients = []
+
+if args.algorithm == "create_data_for_mask_positive_transfer_correlation":
+    # pick two clients for training
     
-for idx in range(args.num_users):
-    clients.append(Client_Sub_Un(idx, copy.deepcopy(users_model[idx]), args.local_bs, args.local_ep, 
+    positive_clients_idx = [0]
+    for idx in range(args.num_users):
+        
+        if len(positive_clients_idx) < 2:
+            # print("we do not have enough clients for training")
+            if idx != 0:
+                if args.transfer == "positive":
+                    if len(list(set(np.unique(users_test_labels[0]))& set(np.unique(users_test_labels[idx])))) == 2:
+                        positive_clients_idx.append(idx)
+                        print(users_test_labels[0])
+                        print(users_test_labels[idx])
+                else:
+                    if len(list(set(np.unique(users_test_labels[0]))& set(np.unique(users_test_labels[idx])))) == 0:
+                        positive_clients_idx.append(idx)
+                        print(users_test_labels[0])
+                        print(users_test_labels[idx])
+            
+
+    for idx in positive_clients_idx:
+        clients.append(Client_Sub_Un(idx, copy.deepcopy(users_model[idx]), args.local_bs, args.local_ep, 
                args.lr, args.momentum, args.device, copy.deepcopy(mask_init), 
                args.pruning_target, train_dataset, user_groups_train[idx], 
                test_dataset, user_groups_test[idx],
                test_dataset, user_groups_val[idx])) 
-    
+
+    create_data_mask_positive_transfer_correlation(args,clients,initial_state_dict)
+
+elif args.algorithm == "create_data_for_mask_positive_transfer_correlation_multiple_clients":
+    label_group_list = [[9,3],[4,6],[0,1]]
+    client_ids = []
+    cluster_ids = []
+    cluster_id = 0
+    for labels in label_group_list:
+        for idx in range(args.num_users):
+            if len(list(set(labels)& set(np.unique(users_test_labels[idx])))) == 2:
+                client_ids.append(idx)
+                cluster_ids.append(cluster_id)
+        cluster_id += 1
+
+    for idx in client_ids:
+        clients.append(Client_Sub_Un(idx, copy.deepcopy(users_model[idx]), args.local_bs, args.local_ep, 
+               args.lr, args.momentum, args.device, copy.deepcopy(mask_init), 
+               args.pruning_target, train_dataset, user_groups_train[idx], 
+               test_dataset, user_groups_test[idx],
+               test_dataset, user_groups_val[idx])) 
+
+    create_data_mask_positive_transfer_correlation(args,clients,initial_state_dict,cluster_ids)
+
+
+else:
+
+    for idx in range(args.num_users):
+        if args.mask_sparse_initialization == True:
+            sparsities = calculate_sparsities(initial_state_dict, sparse = (100-float(args.pruning_target))/100)
+            mask = init_masks(initial_state_dict,sparsities)
+            
+
+            # Convert dict into list
+            mask_init = []
+            for key,value in mask.items():
+                if "weight" in key:
+                    mask_init.append(value.detach().numpy())
+
+
+
+        clients.append(Client_Sub_Un(idx, copy.deepcopy(users_model[idx]), args.local_bs, args.local_ep, 
+                args.lr, args.momentum, args.device, copy.deepcopy(mask_init), 
+                args.pruning_target, train_dataset, user_groups_train[idx], 
+                test_dataset, user_groups_test[idx],
+                test_dataset, user_groups_val[idx])) 
+
+
+  
 
 
 if args.algorithm == "fedspa":
@@ -348,8 +426,24 @@ if args.algorithm == "create_data_to_learn_positive_transfer":
 
 # Create affinity matrix and select related clients
 if args.algorithm == "ours":
-    selected_idx_mat = create_selected_idx_mat(clients,args.n_conv_layer,args.parameter_to_multiply_avg) 
+    if args.clustering == "k_means":
+        selected_idx_mat = k_means_clustering(clients,initial_state_dict,args.n_cluster,args.n_layer)
+    else:    
+        selected_idx_mat = create_selected_idx_mat(clients,args.n_conv_layer,args.parameter_to_multiply_avg) 
     print("selected_idx_mat = ",selected_idx_mat)
+
+if args.algorithm == "ours_k_means_regularization_term":
+    cluster_ids = k_means_clustering(clients,initial_state_dict,args.n_cluster,args.n_layer,return_cluster_ids=True)
+
+    # Initialize masks
+    for idx in range(args.num_users):
+        sparsities = calculate_sparsities(initial_state_dict, sparse = (100-float(args.pruning_target))/100)
+        mask = init_masks(clients[idx].get_state_dict(),sparsities)
+        dic = apply_mask_dict(mask, 
+                                copy.deepcopy(clients[idx].get_net()), initial_state_dict)
+        clients[idx].set_state_dict(dic) 
+        
+        clients[idx].set_mask(mask)
 
 for iteration in range(args.rounds):
 
@@ -367,13 +461,28 @@ for iteration in range(args.rounds):
     
     if args.algorithm == "fedspa":
         U_t_list = []
+
+    if args.algorithm == "ours_k_means_regularization_term":
+        local_masks = []
+        selected_cluster_ids = []
+        for idx in idxs_users:
+            local_masks.append(copy.deepcopy(clients[idx].get_mask()))
+            selected_cluster_ids.append(cluster_ids[idx])
+        mask_regularization_dic = create_mask_regularization_dic(local_masks,selected_cluster_ids,args.weight_regularization)
+
     
     for idx in idxs_users:
                     
-        if (iteration+1 > 1) and (args.algorithm != "local_training"):
+        if (iteration+1 > 1) and (args.algorithm != "local_training") and (args.algorithm != "ours_k_means_regularization_term"):
             dic = Sub_FedAvg_U_initial(copy.deepcopy(clients[idx].get_mask()), 
                                      copy.deepcopy(clients[idx].get_net()), server_state_dict)
+        
             
+            clients[idx].set_state_dict(dic) 
+        elif args.algorithm == "ours_k_means_regularization_term":
+            dic = apply_mask_dict(copy.deepcopy(clients[idx].get_mask()), 
+                                            copy.deepcopy(clients[idx].get_net()), server_state_dict)
+                    
             clients[idx].set_state_dict(dic) 
         
         loss, acc = clients[idx].eval_test()        
@@ -396,6 +505,24 @@ for iteration in range(args.rounds):
             pruner_list[idx] = pruner
         elif args.algorithm == "local_training" or args.algorithm == "fedavg":
             loss = clients[idx].local_train()
+        elif args.algorithm == "ours_k_means_regularization_term":
+            # Pruning with the regularization term
+            clients[idx].local_train()
+            if iteration % args.delta_r == 0:
+                new_masks, num_remove = fire_mask(copy.deepcopy(clients[idx].get_mask()), copy.deepcopy(clients[idx].get_state_dict()),None ,iteration,args.rounds,mask_regularization_dic[cluster_ids[idx]],args.alpha)
+                dic = apply_mask_dict(new_masks, 
+                                            copy.deepcopy(clients[idx].get_net()), copy.deepcopy(clients[idx].get_state_dict()))
+                clients[idx].set_state_dict(dic) 
+
+                # Grow with the regularization term
+                gradients = screen_gradients(copy.deepcopy(clients[idx].get_net()), clients[idx].get_training_data(), None)
+                new_masks = regrow_mask(new_masks,  num_remove,None ,mask_regularization_dic[cluster_ids[idx]],gradients,dis_gradient_check=None)
+                dic = apply_mask_dict(new_masks, 
+                                            copy.deepcopy(clients[idx].get_net()), copy.deepcopy(clients[idx].get_state_dict()))
+                clients[idx].set_state_dict(dic) 
+                clients[idx].set_mask(new_masks)
+            
+
                     
         masks.append(copy.deepcopy(clients[idx].get_mask()))     
         w_locals.append(copy.deepcopy(clients[idx].get_state_dict()))
@@ -428,18 +555,20 @@ for iteration in range(args.rounds):
 
             counter += 1
                  
-    if (args.algorithm != "fedspa") and (args.partial_global_update == False) and (args.algorithm != "local_training"):
+    if (args.algorithm != "fedspa") and (args.partial_global_update == False) and (args.algorithm != "local_training") and (args.algorithm != "ours_k_means_regularization_term"):
         server_state_dict = Sub_FedAVG_U(server_state_dict, w_locals, masks)
     elif args.partial_global_update == True:
         local_averaged_server_state_dict = Sub_FedAVG_U(server_state_dict, w_locals, masks)
         server_state_dict = weighted_global_model_update(server_state_dict,local_averaged_server_state_dict,args.frac)
     elif args.algorithm == "local_training":
         pass
+    elif args.algorithm == "ours_k_means_regularization_term":
+        server_state_dict = update_global_model(server_state_dict, w_locals, masks)
     else:
         server_state_dict = fedspa_global_model_update(server_state_dict,U_t_list)
 
-    if args.algorithm == "ours":
-        server_state_dict = fill_zero_weights(server_state_dict,args.n_conv_layer,layer_wise=args.layer_wise_fill_weights)
+    # if args.algorithm == "ours":
+    #     server_state_dict = fill_zero_weights(server_state_dict,args.n_conv_layer,layer_wise=args.layer_wise_fill_weights)
     
     # print loss
     loss_avg = sum(loss_locals) / len(loss_locals)
@@ -572,13 +701,18 @@ print(f'Train Acc: {train_acc}, Test Acc: {test_acc}')
 mask_list = []
 for k in range(args.num_users):
     mask_list.append(clients[k].get_mask())
-personalized_parameters_ratio_list = calculate_avg_10_percent_personalized_weights_each_layer(mask_list,args.n_conv_layer)
+if args.algorithm != "ours_k_means_regularization_term":
+    personalized_parameters_ratio_list = calculate_avg_10_percent_personalized_weights_each_layer(mask_list,args.n_conv_layer)
 
-# Calculate correlation between label and network similarity
-corr_label_and_network_similarity = calculate_correlation_between_label_similarity_and_network_similarity(users_train_labels,mask_list,args.n_conv_layer)
+    # Calculate correlation between label and network similarity
+    corr_label_and_network_similarity = calculate_correlation_between_label_similarity_and_network_similarity(users_train_labels,mask_list,args.n_conv_layer)
 
-csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","lr","momentum","warmup_epoch","model","ks","in_ch","dataset","nclass","nsample_pc","noniid","pruning_percent","pruning_target","dist_thresh_fc","acc_thresh","seed","algorithm","avg_final_tacc","personalized_parameters_percentage","corr_label_network_similarity","date","delta_r","alpha","regrowth_param","parameter_to_multiply_avg","lambda_value"]
-csv_rows_each_round = [[args.rounds,args.num_users,args.frac,args.local_ep,args.local_bs,args.bs,args.lr,args.momentum,args.warmup_epoch,args.model,args.ks,args.in_ch,args.dataset,args.nclass,args.nsample_pc,args.noniid,args.pruning_percent,args.pruning_target,args.dist_thresh,args.acc_thresh,args.seed,args.algorithm,test_acc,str(personalized_parameters_ratio_list),corr_label_and_network_similarity,today,args.delta_r,args.alpha,args.regrowth_param,args.parameter_to_multiply_avg,args.lambda_value]]
+
+    csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","lr","momentum","warmup_epoch","model","ks","in_ch","dataset","nclass","nsample_pc","noniid","pruning_percent","pruning_target","dist_thresh_fc","acc_thresh","seed","algorithm","avg_final_tacc","personalized_parameters_percentage","corr_label_network_similarity","date","delta_r","alpha","regrowth_param","parameter_to_multiply_avg","lambda_value"]
+    csv_rows_each_round = [[args.rounds,args.num_users,args.frac,args.local_ep,args.local_bs,args.bs,args.lr,args.momentum,args.warmup_epoch,args.model,args.ks,args.in_ch,args.dataset,args.nclass,args.nsample_pc,args.noniid,args.pruning_percent,args.pruning_target,args.dist_thresh,args.acc_thresh,args.seed,args.algorithm,test_acc,str(personalized_parameters_ratio_list),corr_label_and_network_similarity,today,args.delta_r,args.alpha,"regrowth_param="+str(args.regrowth_param),args.parameter_to_multiply_avg,"lambda ="+str(args.lambda_value),"n_cluster="+str(args.n_cluster),"mask_sparse_initialization="+str(args.mask_sparse_initialization)]]
+else:
+    csv_rows_each_round = [[args.rounds,args.num_users,args.frac,args.local_ep,args.local_bs,args.bs,args.lr,args.momentum,args.warmup_epoch,args.model,args.ks,args.in_ch,args.dataset,args.nclass,args.nsample_pc,args.noniid,args.pruning_percent,args.pruning_target,args.dist_thresh,args.acc_thresh,args.seed,args.algorithm,test_acc,today,args.delta_r,args.alpha,"n_cluster="+str(args.n_cluster),"weight_regularization="+str(args.weight_regularization)]]
+
 with open('src/data/log/final_results.csv', 'a') as f:
 
     # using csv.writer method from CSV package
