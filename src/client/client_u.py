@@ -181,6 +181,8 @@ class Client_Sub_Un(object):
         return self.count
     def get_net(self):
         return self.net
+    def get_training_data(self):
+        return self.ldr_train
     def set_state_dict(self, state_dict):
         self.net.load_state_dict(state_dict)
     def set_mask(self,mask):

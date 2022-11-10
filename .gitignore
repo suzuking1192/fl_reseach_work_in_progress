@@ -1,3 +1,4 @@
 *.pickle
 *.p 
 *.h5
+*.csv

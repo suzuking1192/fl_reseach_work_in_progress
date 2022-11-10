@@ -42,6 +42,12 @@ def args_parser():
     parser.add_argument('--lambda_value', type=float, default=1, help='weight of standard deviation in multi pruning')
     parser.add_argument('--partial_global_update', type=bool, default=False, help='whether a global model is updated partially in each round')
     parser.add_argument('--regrowth_param', type=float, default=0.5, help='percentage of regrowth from similar networks')
+    parser.add_argument('--clustering', type=str, default="k_means", help='Clustering method')
+    parser.add_argument('--n_cluster', type=int, default=3, help='number of clusters')
+    parser.add_argument('--weight_regularization', type=float, default=0.001, help='weight_regularization')
+    parser.add_argument('--transfer', type=str, default="positive", help='whether we observe positive transfer or negative trasnfer')
+    parser.add_argument('--mask_sparse_initialization', type=bool, default=False, help='whether we start from sparse masks')
+
 
     # dataset partitioning arguments
     parser.add_argument('--dataset', type=str, default='cifar10', 
@@ -52,7 +58,7 @@ def args_parser():
     parser.add_argument('--label', action='store_true', help='whether non-i.i.d based on label or not')
     parser.add_argument('--split_test', action='store_true', 
                         help='whether split test set in partitioning or not')
-    
+    parser.add_argument('--dirichlet', action='store_true', help='whether non-i.i.d based on shard or not')
     # pruning arguments 
     parser.add_argument('--pruning_percent', type=float, default=10, 
                         help="Pruning percent for layers (0-100)")

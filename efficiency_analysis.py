@@ -9,7 +9,9 @@ dataset_list = ["mnist","cifar10","cifar100"]
 mask_dict = {}
 for dataset_name in dataset_list:
 
-    file_name_mask = "src/data/masks/" + "ours" +"_"+ "lenet5" + "_" + "10"  + "_" + str(dataset_name) + "_" + "1" + "_client_id_" + "0" + ".pickle"
+    file_name_mask = "src/data/masks/" + "ours" +"_"+ "lenet5" + "_" + "100"  + "_" + str(dataset_name) + "_" + "1_70_0.8_1.0_1.0" + "_client_id_" + "0" + ".pickle"
+    
+    
     # open a file, where you stored the pickled data
     file = open(file_name_mask, 'rb')
 
@@ -127,15 +129,23 @@ for dataset_name in dataset_list:
             pruned_parameters_total = num_parameters_initial - num_parameters_total
 
         comm_cost_total += bit_per_float*num_parameters_total*num_client_each_round*1.16*10**(-10)*2 + pruned_parameters_total*num_client_each_round*1.16*10**(-10)*2
+    
+    # Communication cost for clustering
+    num_client_total = 100
+    comm_cost_total += bit_per_float*num_parameters_total*num_client_total*1.16*10**(-10)*2
+    
     print("num_parameters_initial =",num_parameters_initial)
     print("num_parameters_total =",num_parameters_total)
-    print("FedPMS communication cost",dataset_name,comm_cost_total,"GB")
+    print("FedDNPR communication cost",dataset_name,comm_cost_total,"GB")
 
 
 # FLOPs analysis
 
 def flop_calculation(dataset,algorithm,n_conv_layer=2,all=False):
-    file_name_mask = "src/data/masks/" + str(algorithm) +"_"+"lenet5" + "_" + "100" + "_" + str(dataset) + "_" + "1" + "_client_id_" + "0" + ".pickle"
+    if algorithm == "DisPFL":
+        file_name_mask = "src/data/masks/" + str(algorithm) +"_"+"lenet5_100_"+ str(dataset)+ "_1_client_id_0.pickle"
+    else:    
+        file_name_mask = "src/data/masks/" + str(algorithm) +"_"+"lenet5" + "_" + "100" + "_" + str(dataset) + "_" + "1_70_0.8_1.0_1.0" + "_client_id_" + "0" + ".pickle"
     # open a file, where you stored the pickled data
     file = open(file_name_mask, 'rb')
 
