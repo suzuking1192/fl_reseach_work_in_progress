@@ -47,3 +47,16 @@ for i in range(n_row):
         low_mask_distance_list.append(y.iloc[i].item())
 
 print(stats.ttest_ind(low_mask_distance_list, high_mask_distance_list, trim=.2))
+
+mymodel = np.poly1d(np.polyfit(X[feature_idx].values.tolist(), np.squeeze(y.values), 1))
+
+myline = np.linspace(0.14, 0.22, 100)
+
+plt.scatter(X[feature_idx], y)
+plt.plot(myline, mymodel(myline))
+plt.xlabel("Mask Hamming Distance")
+plt.ylabel("Best Test Accuracy")
+plt.show()
+
+from sklearn.metrics import r2_score
+print(r2_score(y, mymodel(X[feature_idx])))

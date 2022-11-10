@@ -5,7 +5,8 @@ dataset = "cifar10"
 num_users = 10
 training_round = 100
 cosine = True
-model = "lenet5_add_1fl_add_1conv"
+# model = "lenet5_add_1fl_add_1conv"
+model = "lenet5"
 
 if model == "lenet5":
     file_name_common = "src/data/positive_transfer/dataset_" + str(dataset) +"num_user" + str(num_users) + "training_round_" + str(training_round) + "cosine_" +str(cosine)
@@ -38,9 +39,9 @@ from sklearn.linear_model import LinearRegression
 
 # selected_columns = [0,1,2,3,4,5,6,7,8,9,10]
 # selected_columns = [12]
-selected_columns = [6,8]
+selected_columns = [8]
 
-reg = LinearRegression().fit(X_train[selected_columns], y_train)
+reg = LinearRegression().fit(X[selected_columns], y)
 # score = reg.score(X[selected_columns], y)
 # print("score = ",score)
 
@@ -48,12 +49,12 @@ print("reg.coef_",reg.coef_)
 
 print("reg.intercept_",reg.intercept_)
 
-score = reg.score(X_train[selected_columns], y_train)
-print("Linear regression train score = ",score)
+score = reg.score(X[selected_columns], y)
+print("Linear regression  score = ",score)
 
-score = reg.score(X_test[selected_columns], y_test)
+# score = reg.score(X_test[selected_columns], y_test)
 
-print("Linear regression test score = ",score)
+# print("Linear regression test score = ",score)
 
 # 10 = accuracy of another model
 # 11 = label
@@ -62,7 +63,7 @@ print("Linear regression test score = ",score)
 # 15 = val 1
 # 17 = val 2
 
-feature_idx = 8
+feature_idx = 15
 
 import scipy.stats as stats
 r = stats.pearsonr(X[feature_idx], y)
@@ -74,7 +75,7 @@ plt.show()
 
 # t test
 
-threshold = -0.2
+threshold = - 0.15
 
 high_mask_distance_list = []
 low_mask_distance_list = []
@@ -88,6 +89,44 @@ for i in range(n_row):
         low_mask_distance_list.append(y.iloc[i].item())
 
 print(stats.ttest_ind(low_mask_distance_list, high_mask_distance_list, trim=.2))
+
+
+
+
+mymodel = np.poly1d(np.polyfit(X[feature_idx].values.tolist(), np.squeeze(y.values), 1))
+
+myline = np.linspace(-1, 1, 100)
+# myline = np.linspace(-20, 40, 100) # l2
+
+
+plt.scatter(X[feature_idx], y)
+plt.plot(myline, mymodel(myline))
+plt.xlabel("Similarity Measure")
+plt.ylabel("Positive Transfer")
+plt.show()
+
+
+from sklearn.metrics import r2_score
+print(r2_score(y, mymodel(X[feature_idx])))
+
+
+# remove outlier for cosine similarity of all parameters
+
+keep_idx = np.where(X[feature_idx]>0.996)
+
+mymodel = np.poly1d(np.polyfit(X[feature_idx].iloc[keep_idx].values.tolist(), np.squeeze(y.iloc[keep_idx].values), 1))
+
+myline = np.linspace(0.996, 1, 100)
+
+plt.scatter(X[feature_idx].iloc[keep_idx], y.iloc[keep_idx])
+plt.plot(myline, mymodel(myline))
+plt.xlabel("Similarity Measure")
+plt.ylabel("Positive Transfer")
+plt.show()
+
+r = stats.pearsonr(X[feature_idx].iloc[keep_idx], y.iloc[keep_idx])
+print("pearson correlation= ",r)
+
 
 # from sklearn.ensemble import RandomForestRegressor
   

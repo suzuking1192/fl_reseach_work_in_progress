@@ -598,7 +598,7 @@ def weighted_global_model_update(server_state_dict,local_averaged_server_state_d
     return server_state_dict
 
 
-def create_data_to_learn_positive_transfer(clients,args,initial_state_dict,num_client,users_train_labels,train_dataset,test_dataset,user_groups_train,training_round=20,bias=True,total=True,labels=True,distance_change_over_training=50,cosine=True,prediction_dist=True,val_acc_another_model=True):
+def create_data_to_learn_positive_transfer(clients,args,initial_state_dict,num_client,users_train_labels,train_dataset,test_dataset,user_groups_train,training_round=100,bias=True,total=True,labels=True,distance_change_over_training=50,cosine=True,prediction_dist=True,val_acc_another_model=True):
     # Local training
     locally_trained_weights_list  = []
     for c_idx in range(num_client):
@@ -618,6 +618,7 @@ def create_data_to_learn_positive_transfer(clients,args,initial_state_dict,num_c
         with open(numpy_filename, 'wb') as f:
             np.save(f, local_weights_array)
     
+
     # Calculate initial accuracy
     init_acc_list = []
     
@@ -753,7 +754,7 @@ def create_data_to_learn_positive_transfer(clients,args,initial_state_dict,num_c
 
                     prediction_cross_entropy = loss(pred_1, pred_2)
                     
-
+                    
 
                     # prediction_dist = (pred_1 - pred_2).pow(2).sum(1).sum().sqrt()  
                     l2_dis_list[counter].append(prediction_cross_entropy.detach().numpy().item())
@@ -766,9 +767,12 @@ def create_data_to_learn_positive_transfer(clients,args,initial_state_dict,num_c
                     masks.append(copy.deepcopy(clients[ref_idx].get_mask()))         
                     w_locals.append(copy.deepcopy(clients[c_idx].get_state_dict()))
                     w_locals.append(copy.deepcopy(clients[ref_idx].get_state_dict()))
+                    
 
-                    avg_server_state_dict = Sub_FedAVG_U(initial_state_dict, w_locals, masks)
-
+                    if i_round == 0:
+                        avg_server_state_dict = Sub_FedAVG_U(initial_state_dict, w_locals, masks)
+                    else:
+                        avg_server_state_dict = Sub_FedAVG_U(avg_server_state_dict, w_locals, masks)
                     clients[c_idx].set_state_dict(avg_server_state_dict)
                     clients[ref_idx].set_state_dict(avg_server_state_dict)
 

@@ -307,3 +307,176 @@ def iid(dataset_name, train_dataset, test_dataset, num_users, split_test = False
         users_test_idx[i] = np.concatenate((users_test_idx[i], test_selected), axis=0)
         
     return users_train_idx, users_test_idx
+
+def noniid_dirichlet(dataset_name, train_dataset, test_dataset, num_users, n_class, nsamples_pc, split_test = False):
+    """
+    Partitioning cifar10 non-iid amongst clients based on number of shards. For example if n_class is 2,
+    each partition will have 2 random shards --> if may end up with 2 random labels or the both shards have 
+    the same label, then the client will have one label. 
+    
+    :param dataset_name: name of dataset
+    :param train_dataset: pytorch train dataset 
+    :param test_dataset: pytorch test dataset
+    :param num_users: number of users to partition dataset 
+    :param n_class: number of random labels to be assigned to each client 
+    :param nsamples_pc: number of samples per class (label)
+    :param split_test: splitting test data amongst clients --> if False, then clients will have the 
+     full test data based of the labels they have! 
+    
+    :return: users_train_groups, users_test_groups
+    """
+    
+    if dataset_name == 'cifar10':
+        num_classes = 10
+        img_train_pc = 5000 
+        img_test_pc = 1000
+        alpha = 0.3
+        
+    elif dataset_name == 'cifar100':
+        num_classes = 100
+        img_train_pc = 500
+        img_test_pc = 100
+        alpha = 0.2
+    elif dataset_name == 'mnist':
+        num_classes = 10
+        img_train_pc = 5000 
+        img_test_pc = 900
+        alpha = 0.3
+    dir_test_per_user = int(img_test_pc*0.2*num_classes*0.8)
+    dir_val_per_user = int(img_test_pc*0.2*num_classes*0.2)
+
+        
+    # num_shards_train, num_imgs_train_per_shard = int(len(train_dataset)/nsamples_pc), nsamples_pc
+    num_imgs_test_per_client, num_imgs_test_total = img_test_pc, len(test_dataset)
+    
+    ## checking 
+    # assert(n_class * num_users <= num_shards_train)
+    assert(n_class <= num_classes)
+    
+    idx_class = [i for i in range(num_classes)]
+    # idx_shard = [i for i in range(num_shards_train)]
+    
+    dict_users_train = {i: np.array([], dtype='int64') for i in range(num_users)}
+    dict_users_test = {i: np.array([], dtype='int64') for i in range(num_users)}
+    dict_users_val = {i: np.array([], dtype='int64') for i in range(num_users)}
+    
+    # num_samples_test_per_class = int(img_test_pc/num_users)
+    # num_shards_test_per_class = int(img_test_pc/num_samples_test_per_class)
+    # idx_shards_test_y = {j: [i for i in range(num_shards_test_per_class)] for j in range(num_classes)}
+    idx_train_y = {i: [] for i in range(num_classes)}
+    idx_test_y = {i: [] for i in range(num_classes)}
+    idx_val_y = {i: [] for i in range(num_classes)}
+    n_sample_per_user = nsamples_pc * n_class
+    # sort train data based on labels 
+    idxs_train = np.arange(img_train_pc*num_classes)
+    labels_train = np.array(train_dataset.targets[:img_train_pc*num_classes])
+    idxs_labels_train = np.vstack((idxs_train, labels_train))
+    idxs_labels_train = idxs_labels_train[:, idxs_labels_train[1, :].argsort()]
+    idxs_train = idxs_labels_train[0, :]
+    labels_train = idxs_labels_train[1, :]
+    
+    # sort test data based on labels 
+    percentage_of_val = 0.2
+    idxs_test = np.arange(num_imgs_test_total*(1-percentage_of_val))
+    n_test = len(idxs_test)
+    labels_test = np.array(test_dataset.targets[:n_test])
+    idxs_labels_test = np.vstack((idxs_test, labels_test))
+    idxs_labels_test = idxs_labels_test[:, idxs_labels_test[1, :].argsort()]
+    idxs_test = idxs_labels_test[0, :]
+    labels_test = idxs_labels_test[1, :]
+
+    # sort val data based on labels 
+    idxs_val = np.arange(num_imgs_test_total*percentage_of_val)
+    labels_val = np.array(test_dataset.targets[n_test:])
+    idxs_labels_val = np.vstack((idxs_val, labels_val))
+    idxs_labels_val = idxs_labels_val[:, idxs_labels_val[1, :].argsort()]
+    idxs_val = idxs_labels_val[0, :]
+    labels_val = idxs_labels_val[1, :]
+    
+    for i in range(num_classes):
+        idx_train_y[i] = idxs_train[np.where(labels_train == i)[0]]
+        idx_test_y[i] = idxs_test[np.where(labels_test == i)[0]]
+        idx_val_y[i] = idxs_val[np.where(labels_val == i)[0]]
+    
+    # assign
+    cls_priors = np.random.dirichlet(alpha=[alpha] * num_classes, size=num_users)
+    for i in range(num_users):
+        
+        
+        # train dataset
+        n_data_per_class_train = np.ceil(cls_priors[i]*n_sample_per_user).astype(int)
+        if sum(n_data_per_class_train) > n_sample_per_user:
+            diff = sum(n_data_per_class_train) - n_sample_per_user
+            max_ele = max(n_data_per_class_train)
+            index_max_value = np.where(n_data_per_class_train==max_ele)[0][0]
+            reduce_class = index_max_value
+            n_data_per_class_train[reduce_class] = n_data_per_class_train[reduce_class] -diff
+
+        for cls in range(num_classes):
+            
+            assign_num_cls = n_data_per_class_train[cls]
+            if assign_num_cls>0:
+                
+
+                train_idx_target_cls = np.random.choice(idx_train_y[cls],assign_num_cls)
+                
+                idx_train_y[cls]= np.setdiff1d(idx_train_y[cls], train_idx_target_cls)
+                dict_users_train[i] = np.concatenate((dict_users_train[i], train_idx_target_cls.astype(int)), axis=0)
+
+        # test dataset
+        n_data_per_class_test = np.ceil(cls_priors[i]*dir_test_per_user).astype(int)
+        if sum(n_data_per_class_test) > dir_test_per_user:
+            diff = sum(n_data_per_class_test) - dir_test_per_user
+            max_ele = max(n_data_per_class_test)
+            index_max_value = np.where(n_data_per_class_test==max_ele)[0][0]
+            reduce_class = index_max_value
+            n_data_per_class_test[reduce_class] = n_data_per_class_test[reduce_class] -diff
+
+        for cls in range(num_classes):
+            
+            assign_num_cls = n_data_per_class_test[cls]
+            if assign_num_cls>0:
+                test_idx_target_cls = np.random.choice(idx_test_y[cls],assign_num_cls)
+                
+                
+                dict_users_test[i] = np.concatenate((dict_users_test[i], test_idx_target_cls.astype(int)), axis=0)
+                    
+        # val dataset
+        n_data_per_class_val = np.ceil(cls_priors[i]*dir_val_per_user).astype(int)
+        if sum(n_data_per_class_val) > dir_val_per_user:
+            diff = sum(n_data_per_class_val) - dir_val_per_user
+            max_ele = max(n_data_per_class_val)
+            index_max_value = np.where(n_data_per_class_val==max_ele)[0][0]
+            reduce_class = index_max_value
+            n_data_per_class_val[reduce_class] = n_data_per_class_val[reduce_class] -diff
+
+        for cls in range(num_classes):
+            
+            assign_num_cls = n_data_per_class_val[cls]
+            if assign_num_cls>0:
+
+                val_idx_target_cls = np.random.choice(idx_val_y[cls],assign_num_cls)
+                
+                
+                dict_users_val[i] = np.concatenate((dict_users_val[i], val_idx_target_cls.astype(int)), axis=0)
+                    
+        
+        
+
+
+
+    
+    # Save data
+    file_name_train = 'src/data/'  + str(dataset_name) + "/num_user_"+str(num_users) + "dirichlet" + "train.p"
+    with open(file_name_train, 'wb') as fp:
+        pickle.dump(dict_users_train, fp)
+    
+    file_name_test = 'src/data/'  + str(dataset_name)+ "/num_user_"+str(num_users) + "dirichlet" + "test.p"
+    with open(file_name_test, 'wb') as fp:
+        pickle.dump(dict_users_test, fp, protocol=pickle.HIGHEST_PROTOCOL)
+    
+    file_name_val = 'src/data/'  + str(dataset_name)+ "/num_user_"+str(num_users) + "dirichlet" + "val.p"
+    with open(file_name_val, 'wb') as fp:
+        pickle.dump(dict_users_val, fp, protocol=pickle.HIGHEST_PROTOCOL)
+
+    return dict_users_train, dict_users_test,dict_users_val

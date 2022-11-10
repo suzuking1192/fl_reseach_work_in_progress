@@ -88,6 +88,27 @@ if args.dataset == 'cifar10':
             user_groups_train, user_groups_test = \
             noniid_label(args.dataset, train_dataset, test_dataset, args.num_users, nclass_cifar10,
                                  nsamples_cifar10, args.split_test)
+        elif args.dirichlet:
+            if args.load_data:
+                print("load dirichlet data")
+                print(args.dataset)
+                file_name_train = 'src/data/'  + str(args.dataset) + "/num_user_"+str(args.num_users) + "dirichlet" + "train.p"
+                with open(file_name_train, 'rb') as fp:
+                    user_groups_train = pickle.load(fp)
+                
+                file_name_test = 'src/data/'  + str(args.dataset)+ "/num_user_"+str(args.num_users) + "dirichlet" + "test.p"
+                with open(file_name_test, 'rb') as fp:
+                    user_groups_test = pickle.load(fp)
+
+                file_name_val = 'src/data/'  + str(args.dataset)+ "/num_user_"+str(args.num_users) + "dirichlet" + "val.p"
+                with open(file_name_val, 'rb') as fp:
+                    user_groups_val = pickle.load(fp)
+
+            else:
+                print("create a new dirichlet data")
+                print(args.dataset)
+                user_groups_train, user_groups_test, user_groups_val = noniid_dirichlet(args.dataset, train_dataset, test_dataset, 
+                                args.num_users, nclass_cifar10, nsamples_cifar10, args.split_test)
             
         else: 
             exit('Error: unrecognized partitioning type')
@@ -137,6 +158,30 @@ elif args.dataset == 'cifar100':
             user_groups_train, user_groups_test = \
             noniid_label(args.dataset, train_dataset, test_dataset, args.num_users, nclass_cifar100,
                                  nsamples_cifar100, args.split_test)
+
+        elif args.dirichlet:
+            if args.load_data:
+                print("load dirichlet data")
+                print(args.dataset)
+                file_name_train = 'src/data/'  + str(args.dataset) + "/num_user_"+str(args.num_users) + "dirichlet" + "train.p"
+                with open(file_name_train, 'rb') as fp:
+                    user_groups_train = pickle.load(fp)
+                
+                file_name_test = 'src/data/'  + str(args.dataset)+ "/num_user_"+str(args.num_users) + "dirichlet" + "test.p"
+                with open(file_name_test, 'rb') as fp:
+                    user_groups_test = pickle.load(fp)
+
+                file_name_val = 'src/data/'  + str(args.dataset)+ "/num_user_"+str(args.num_users) + "dirichlet" + "val.p"
+                with open(file_name_val, 'rb') as fp:
+                    user_groups_val = pickle.load(fp)
+
+            else:
+                print("create a new dirichlet data")
+                print(args.dataset)
+                user_groups_train, user_groups_test, user_groups_val = noniid_dirichlet(args.dataset, train_dataset, test_dataset, 
+                                args.num_users, nclass_cifar100, nsamples_cifar100, args.split_test)
+            
+        
         else: 
             exit('Error: unrecognized partitioning type')
     else:
@@ -180,7 +225,31 @@ elif args.dataset == 'mnist':
             print(f'--MNIST Non-IID-- {args.nclass} random Labels, Sample per label {args.nsample_pc}')
             user_groups_train, user_groups_test = \
             noniid_label(args.dataset, train_dataset, test_dataset, args.num_users, nclass_mnist,
-                                 nsamples_mnist, args.split_test)        
+                                 nsamples_mnist, args.split_test)   
+
+        elif args.dirichlet:
+            if args.load_data:
+                print("load dirichlet data")
+                print(args.dataset)
+                file_name_train = 'src/data/'  + str(args.dataset) + "/num_user_"+str(args.num_users) + "dirichlet" + "train.p"
+                with open(file_name_train, 'rb') as fp:
+                    user_groups_train = pickle.load(fp)
+                
+                file_name_test = 'src/data/'  + str(args.dataset)+ "/num_user_"+str(args.num_users) + "dirichlet" + "test.p"
+                with open(file_name_test, 'rb') as fp:
+                    user_groups_test = pickle.load(fp)
+
+                file_name_val = 'src/data/'  + str(args.dataset)+ "/num_user_"+str(args.num_users) + "dirichlet" + "val.p"
+                with open(file_name_val, 'rb') as fp:
+                    user_groups_val = pickle.load(fp)
+
+            else:
+                print("create a new dirichlet data")
+                print(args.dataset)
+                user_groups_train, user_groups_test, user_groups_val = noniid_dirichlet(args.dataset, train_dataset, test_dataset, 
+                                args.num_users, nclass_mnist, nsamples_mnist, args.split_test)
+            
+
         else: 
             exit('Error: unrecognized partitioning type')
     else: 
@@ -196,6 +265,8 @@ users_test_labels = {i: [] for i in range(args.num_users)}
 
 train_targets = np.array(train_dataset.targets)
 test_targets = np.array(test_dataset.targets)
+
+
 
 for i in range(args.num_users):
     ## Train Data for Each Client 
@@ -214,7 +285,7 @@ for i in range(args.num_users):
     
     # print(f'Client: {i}, Train Labels: {users_train_labels[i]}, Test Labels: {users_test_labels[i]},'
     #       f' Num Train: {train_count_per_client}, Num Test: {test_count_per_client}')
-        
+       
 ## 
 # build model
 print(f'MODEL: {args.model}, Dataset: {args.dataset}')
@@ -709,7 +780,11 @@ if args.algorithm != "ours_k_means_regularization_term":
 
 
     csv_fields_each_round = ["round","num_users","frac","local_ep","local_bs","bs","lr","momentum","warmup_epoch","model","ks","in_ch","dataset","nclass","nsample_pc","noniid","pruning_percent","pruning_target","dist_thresh_fc","acc_thresh","seed","algorithm","avg_final_tacc","personalized_parameters_percentage","corr_label_network_similarity","date","delta_r","alpha","regrowth_param","parameter_to_multiply_avg","lambda_value"]
-    csv_rows_each_round = [[args.rounds,args.num_users,args.frac,args.local_ep,args.local_bs,args.bs,args.lr,args.momentum,args.warmup_epoch,args.model,args.ks,args.in_ch,args.dataset,args.nclass,args.nsample_pc,args.noniid,args.pruning_percent,args.pruning_target,args.dist_thresh,args.acc_thresh,args.seed,args.algorithm,test_acc,str(personalized_parameters_ratio_list),corr_label_and_network_similarity,today,args.delta_r,args.alpha,"regrowth_param="+str(args.regrowth_param),args.parameter_to_multiply_avg,"lambda ="+str(args.lambda_value),"n_cluster="+str(args.n_cluster),"mask_sparse_initialization="+str(args.mask_sparse_initialization)]]
+    if args.shard:
+    
+        csv_rows_each_round = [[args.rounds,args.num_users,args.frac,args.local_ep,args.local_bs,args.bs,args.lr,args.momentum,args.warmup_epoch,args.model,args.ks,args.in_ch,args.dataset,args.nclass,args.nsample_pc,args.noniid,args.pruning_percent,args.pruning_target,args.dist_thresh,args.acc_thresh,args.seed,args.algorithm,test_acc,str(personalized_parameters_ratio_list),corr_label_and_network_similarity,today,args.delta_r,args.alpha,"regrowth_param="+str(args.regrowth_param),args.parameter_to_multiply_avg,"lambda ="+str(args.lambda_value),"n_cluster="+str(args.n_cluster),"mask_sparse_initialization="+str(args.mask_sparse_initialization)]]
+    elif args.dirichlet:
+        csv_rows_each_round = [[args.rounds,args.num_users,args.frac,args.local_ep,args.local_bs,args.bs,args.lr,args.momentum,args.warmup_epoch,args.model,args.ks,args.in_ch,args.dataset,args.nclass,args.nsample_pc,args.noniid,args.pruning_percent,args.pruning_target,args.dist_thresh,args.acc_thresh,args.seed,args.algorithm,test_acc,str(personalized_parameters_ratio_list),corr_label_and_network_similarity,today,args.delta_r,args.alpha,"regrowth_param="+str(args.regrowth_param),args.parameter_to_multiply_avg,"lambda ="+str(args.lambda_value),"n_cluster="+str(args.n_cluster),"mask_sparse_initialization="+str(args.mask_sparse_initialization),"Dirichlet_distribution"]]
 else:
     csv_rows_each_round = [[args.rounds,args.num_users,args.frac,args.local_ep,args.local_bs,args.bs,args.lr,args.momentum,args.warmup_epoch,args.model,args.ks,args.in_ch,args.dataset,args.nclass,args.nsample_pc,args.noniid,args.pruning_percent,args.pruning_target,args.dist_thresh,args.acc_thresh,args.seed,args.algorithm,test_acc,today,args.delta_r,args.alpha,"n_cluster="+str(args.n_cluster),"weight_regularization="+str(args.weight_regularization)]]
 

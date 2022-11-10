@@ -58,7 +58,7 @@ def args_parser():
     parser.add_argument('--label', action='store_true', help='whether non-i.i.d based on label or not')
     parser.add_argument('--split_test', action='store_true', 
                         help='whether split test set in partitioning or not')
-    
+    parser.add_argument('--dirichlet', action='store_true', help='whether non-i.i.d based on shard or not')
     # pruning arguments 
     parser.add_argument('--pruning_percent', type=float, default=10, 
                         help="Pruning percent for layers (0-100)")
